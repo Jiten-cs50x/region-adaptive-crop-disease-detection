@@ -1,97 +1,55 @@
 # Region-Adaptive Crop Disease Detection
 
-A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup and training.
+A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, duplicate screening, conservative curation, leakage-aware splitting, EfficientNet-B0 training, and held-out test evaluation.
 
-## Current status: v0.9.1
-- Dataset inventory and metadata manifest validation
-- SHA-256 exact duplicate grouping and conservative curation
-- Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
-- Perceptual near-duplicate screening remains candidate-only
-- Group-aware train/validation/test splits
-- EfficientNet-B0 model factory, configurable transforms, and training pipeline
-- AgML sugarcane configuration aligned to all 11 source folder labels
-- GPU training defaults set to batch size 8 and zero DataLoader workers for a 6 GB RTX 3050 starting point
+## Current status: v1.0.0
+- Test-only checkpoint evaluation with leakage checks, accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, and misclassification CSV.
+- AgML sugarcane configuration aligned to all 11 source folder labels.
+- Downloaded images, generated runs, checkpoints, and local reports remain local and are not committed.
 
 ## Install (Windows)
 
     python -m venv .venv
-    .venv\\Scripts\\Activate.ps1
+    .venv\Scripts\Activate.ps1
     pip install -e .
     pip install -e ".[dev]"
 
-Install compatible PyTorch and torchvision wheels using https://pytorch.org/get-started/locally/. Confirm CUDA with:
+Install compatible PyTorch and torchvision wheels using https://pytorch.org/get-started/locally/.
 
-    python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU')"
+## Dataset curation and splits
 
-## Dataset location and curation
-
-Keep the downloaded Project-AgML images locally under `datasets/sugarcane/raw/project_agml/`; do not commit dataset images to Git.
-
-The current source dataset contains 6,748 leaf images in 11 source folders. The curation run reported 5,389 retained images after keeping one representative from same-class exact-duplicate groups and excluding cross-class exact-duplicate groups pending review. The source images and original manifest are not modified.
+The AgML dataset contains 6,748 leaf images in 11 source folders. The reported curation retained 5,389 images after keeping one representative from same-class exact-duplicate groups and excluding cross-class exact-duplicate groups pending review.
 
     crop-adaptive curate --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/dataset_manifest.csv --output datasets/sugarcane/curated
 
-Review `datasets/sugarcane/curated/cross_class_duplicate_review.csv` before reconsidering any excluded conflicting-label samples. Exact byte equality identifies identical files; it does not identify the correct disease label.
-
-## Create or regenerate splits
-
-The current AgML manifest rows are marked unverified. The following command is an explicit opt-in to use source-provided labels for exploratory training; it does not make them independently verified:
+The source labels remain unverified. For exploratory training, create splits from the curated manifest with an explicit opt-in:
 
     crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/splits --include-unverified --seed 42
 
-Run this after curation and whenever the curated manifest changes. Check `split_report.json` to confirm the split class counts. The split command keeps shared plant, field, capture-session, and supplied duplicate-group IDs together. Missing provenance identifiers mean unknown relationships cannot be ruled out.
-
-## AgML 11-class taxonomy
-
-The config `configs/sugarcane_karnataka.yaml` uses the exact folder labels reported by the downloaded dataset:
-
-1. Banded Chlorosis
-2. Brown Spot
-3. BrownRust
-4. Dried
-5. Grassy shoot
-6. Healthy
-7. Pokkah Boeng
-8. Sett Rot
-9. Smut
-10. Viral Disease
-11. Yellow Leaf
-
-The class names are source-provided categories. Confirm their definitions and annotation quality against the dataset documentation and expert review before making disease-diagnosis claims. In particular, do not assume every folder is a clearly defined disease category.
-
-## GPU training: RTX 3050 6 GB
-
-The configuration uses EfficientNet-B0, 224-pixel input, batch size 8, and `num_workers: 0`. This is a conservative starting point, not a guarantee against out-of-memory errors. If CUDA runs out of memory, retry with batch size 4.
-
-First run a model configuration check:
-
-    crop-adaptive model-info --config configs/sugarcane_karnataka.yaml --no-pretrained
-
-Then run a short GPU smoke test (two epochs, batch size 4, no pretrained download):
-
-    crop-adaptive train --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --output runs/sugarcane_smoke_test --epochs 2 --batch-size 4 --device cuda --no-pretrained
-
-If the smoke test completes and produces `best_model.pt`, `last_checkpoint.pt`, `training_history.json`, and `training_summary.json`, start the full run:
+## Train
 
     crop-adaptive train --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --output runs/sugarcane_efficientnet_b0 --device cuda
 
 Training reads train.csv and validation.csv only. It does not load test.csv. The best checkpoint is selected by validation loss.
 
-## Research integrity and limitations
+## Evaluate the untouched test split
 
-- All current AgML manifest labels remain `unverified`; using `--include-unverified` is an explicit exploratory-training decision, not verification.
-- Do not invent missing provenance, region, district, variety, growth stage, plant, field, or capture-session metadata.
-- Keep the test split untouched until final evaluation.
-- Preserve a separate Karnataka regional holdout; do not use it for training, tuning, or early stopping.
+Run evaluation once after training. The command reads train.csv and validation.csv only for leakage checks; metric calculation uses only test.csv.
+
+    crop-adaptive evaluate --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --checkpoint runs/sugarcane_efficientnet_b0/best_model.pt --output runs/sugarcane_efficientnet_b0/evaluation --device cuda
+
+Optional controls include --batch-size 8, --num-workers 0, and --device cpu.
+
+Outputs:
+- evaluation_summary.json: accuracy, macro/weighted precision, recall and F1, and per-class metrics
+- confusion_matrix.csv and confusion_matrix.json
+- misclassified.csv: relative image path, true label, predicted label, and confidence
+
+The checkpoint class order must match the supplied YAML config. Only evaluate trusted local checkpoint files because PyTorch checkpoint metadata is loaded with pickle support.
+
+## Research integrity
+
+- All AgML manifest labels remain unverified; --include-unverified is exploratory use, not label verification.
+- Preserve an independent Karnataka regional holdout; do not use it for training, tuning, or early stopping.
 - A leaf-only classifier cannot be assumed to diagnose conditions requiring stalk, root, or whole-plant evidence.
 - Check third-party dataset licenses before redistribution.
-- Keep downloaded images, generated runs, checkpoints, and local reports out of Git unless intentionally publishing a permitted artifact.
-
-## Roadmap
-
-1. Dataset curation, metadata, exact/perceptual duplicate screening, and leakage-aware splits
-2. EfficientNet-B0 training
-3. Test-set evaluation, confusion matrix, per-class metrics, and error review
-4. Independent Karnataka regional holdout and regional fine-tuning
-5. Human-reviewed correction queue and controlled retraining
-6. Python API and package release
