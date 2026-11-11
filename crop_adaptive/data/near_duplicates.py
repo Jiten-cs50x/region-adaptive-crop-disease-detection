@@ -28,7 +28,7 @@ def difference_hash(path: str | Path, hash_size: int = 8) -> int:
 
 
 def hamming_distance(left: int, right: int) -> int:
-    return (left ^ right).bit_count()
+    return bin(left ^ right).count("1")
 
 
 class _BKTree:
