@@ -1,0 +1,12 @@
+project:
+  name: region-adaptive-crop-disease-detection
+  version: 0.1.0
+
+dataset:
+  image_extensions: [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"]
+  min_width: 64
+  min_height: 64
+  max_file_size_mb: 30
+
+validation:
+  compute_sha256: true
