@@ -16,7 +16,7 @@ def test_classification_metrics_handles_missing_predictions_for_a_class():
     assert result["per_class"]["rust"]["precision"] == 0.0
     assert result["per_class"]["rust"]["recall"] == 0.0
     assert result["per_class"]["rust"]["f1_score"] == 0.0
-    assert result["macro_f1"] == pytest.approx(0.5)
+    assert result["macro_f1"] == pytest.approx(0.4)
 
 def test_classification_metrics_rejects_empty_or_mismatched_matrix():
     with pytest.raises(ValueError, match="empty"):

@@ -1,29 +1,68 @@
 # Project status
 
-## Implemented through v0.9.1
-- Dataset validation, manifest validation, duplicate screening, curation, group-aware splits, EfficientNet-B0 model factory, transforms, and training.
-- AgML sugarcane configuration aligned to 11 source folder labels.
-- Source label status remains unverified.
+## Implemented in v0.1.0
+- Package skeleton, CLI, YAML configuration, non-destructive image validation, inventory, and exact duplicate report.
 
-## Implemented in v1.0.0
-- Checkpoint evaluation calculates metrics using test.csv only.
-- Train and validation CSVs are read only for image-path and plant/field/session leakage checks.
-- Reports accuracy, macro and weighted precision/recall/F1, per-class metrics, and sample counts.
-- Exports confusion matrix as CSV and JSON.
-- Exports misclassified-image CSV with true/predicted labels and confidence.
-- Enforces checkpoint/config class-index and class-order compatibility.
-- Adds unit tests for metric calculations.
+## Implemented in v0.2.0
+- CSV metadata manifest template and validation.
+- Image path boundary checks and metadata validation.
+
+## Implemented in v0.3.0
+- Deterministic train/validation/test split CSV generation.
+- Group linking across plant_id, field_id, and capture_session_id.
+- Verified-label-only splitting by default.
+
+## Implemented in v0.4.0
+- Difference-hash perceptual similarity screening and candidate review groups.
+
+## Implemented in v0.5.0
+- Image dimensions, brightness, contrast, and approximate sharpness screening.
+
+## Implemented in v0.6.0
+- EfficientNet-B0 model factory, taxonomy-driven classifier, optional pretrained weights, feature freezing, and dropout.
+
+## Implemented in v0.7.0
+- EXIF correction, RGB conversion, ImageNet normalization, conservative train augmentation, deterministic validation/test/prediction transforms.
+
+## Implemented in v0.8.0
+- Manifest-backed PyTorch Dataset and train/validation DataLoaders.
+- Configurable EfficientNet-B0 training loop with AdamW.
+- Reproducible random seeds and CUDA/CPU device selection.
+- Validation loss/accuracy monitoring, scheduler, checkpoints, early stopping, history, and summary outputs.
+- Test split is not read by the training command.
+
+## Implemented in v0.9.0
+- Exact SHA-256 duplicate grouping during manifest curation.
+- Same-class exact duplicates reduced to one deterministic representative.
+- Cross-class exact duplicate groups excluded from the curated manifest pending human review.
+- Human-review CSV, per-image curation audit CSV, and curation summary JSON.
+- Source images and source manifest remain unchanged; label statuses are preserved.
+- Group-aware splitting can optionally connect rows using an exact-duplicate review CSV.
+- Explicit --include-unverified opt-in remains available for source-labelled datasets; no automatic label verification.
+
+## Implemented in v0.9.1
+- Sugarcane config updated from six provisional classes to the 11 exact AgML source folder labels.
+- AgML source and unverified label status recorded explicitly in config.
+- EfficientNet-B0 GPU starting defaults set to batch size 8 and num_workers 0 for the user's RTX 3050 6 GB.
+- Added tests for exact taxonomy/configuration consistency.
 
 ## Next
-- Run the v1.0.0 test suite locally.
-- Evaluate the completed sugarcane checkpoint on the held-out test split exactly once.
-- Review misclassifications and label quality with an agronomy-informed reviewer.
-- Build an independent Karnataka regional holdout and keep it separate from training and adaptation.
-- Implement regional fine-tuning and a human-reviewed correction queue.
+- Regenerate splits from the final curated manifest and inspect split_report.json.
+- Run a short GPU smoke test before the full training run.
+- Test-set evaluation: accuracy, macro precision/recall/F1, per-class metrics, confusion matrix, and error review.
+- Compare generic and regional model performance on an untouched Karnataka regional holdout.
+- Regional fine-tuning using training/adaptation data only.
+- Human-reviewed correction queue and controlled retraining.
 
 ## Research integrity
-- Exact SHA-256 duplicates do not identify the correct conflicting disease label.
-- Perceptual hash matches are review candidates, not confirmed duplicates.
+- SHA-256 equality identifies byte-identical files but cannot determine which conflicting disease label is correct.
+- Perceptual hash matches are screening candidates, not confirmed duplicates.
 - Preserve source labels and provenance; never infer missing region, variety, or diagnosis metadata.
 - Unverified source labels must not be described as independently verified.
 - A leaf-only classifier cannot be assumed to detect diseases requiring stalk, root, or whole-plant evidence.
+- Keep regional test data separate from training, validation, and adaptation.
+- Check third-party dataset licenses before redistribution.
+
+## Testing status
+- Curation, duplicate-aware split, model factory, transforms, and training dataset tests are present.
+- The user reports all tests executed locally after installing CUDA-enabled PyTorch; exact pass/skip/failure counts should be retained from their final pytest summary.
