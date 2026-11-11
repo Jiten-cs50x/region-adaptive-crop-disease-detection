@@ -9,6 +9,7 @@ from crop_adaptive.data.near_duplicates import find_near_duplicates
 from crop_adaptive.data.quality import analyze_image_quality
 from crop_adaptive.data.splitting import create_group_splits
 from crop_adaptive.data.validator import validate_dataset
+from crop_adaptive.models.efficientnet import build_model_from_config
 
 
 def main() -> None:
@@ -54,6 +55,10 @@ def main() -> None:
     quality.add_argument("--min-contrast", type=float, default=20.0)
     quality.add_argument("--min-sharpness", type=float, default=10.0)
     quality.add_argument("--analysis-size", type=int, default=256)
+
+    model_info = commands.add_parser("model-info", help="Build EfficientNet-B0 and report its classifier configuration")
+    model_info.add_argument("--config", required=True)
+    model_info.add_argument("--no-pretrained", action="store_true", help="Do not download ImageNet pretrained weights")
 
     args = parser.parse_args()
     if args.command == "validate":
@@ -102,6 +107,25 @@ def main() -> None:
         )
         print(json.dumps(report, indent=2))
         print(f"\nQuality reports saved to: {Path(args.output).resolve()} and {Path(args.output).with_suffix('.csv').resolve()}")
+    elif args.command == "model-info":
+        with Path(args.config).open("r", encoding="utf-8") as stream:
+            config = yaml.safe_load(stream) or {}
+        model = build_model_from_config(
+            config,
+            pretrained_override=False if args.no_pretrained else None,
+        )
+        total = sum(parameter.numel() for parameter in model.parameters())
+        trainable = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
+        classes = config.get("taxonomy", {}).get("classes", [])
+        print(json.dumps({
+            "backbone": "efficientnet_b0",
+            "num_classes": len(classes),
+            "classes": classes,
+            "input_size": config.get("model", {}).get("input_size", 224),
+            "total_parameters": total,
+            "trainable_parameters": trainable,
+            "pretrained_weights": bool(config.get("model", {}).get("pretrained", True)) and not args.no_pretrained,
+        }, indent=2))
 
 
 if __name__ == "__main__":

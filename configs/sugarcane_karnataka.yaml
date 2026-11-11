@@ -11,6 +11,13 @@ task:
   image_type: leaf
   backbone: efficientnet_b0
 
+model:
+  name: efficientnet_b0
+  pretrained: true
+  freeze_backbone: false
+  dropout: 0.2
+  input_size: 224
+
 dataset:
   image_extensions: [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"]
   min_width: 64
@@ -22,6 +29,7 @@ validation:
 
 taxonomy:
   version: "1.0.0"
+  # Provisional foliar classes; confirm labels and scope against the final dataset.
   classes:
     - healthy
     - rust

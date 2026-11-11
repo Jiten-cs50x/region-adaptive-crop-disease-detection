@@ -28,9 +28,16 @@
 - JSON and CSV quality reports with per-image review flags
 - Non-destructive operation; no automatic deletion or dataset exclusion
 
+## Implemented in v0.6.0
+- EfficientNet-B0 model factory using torchvision
+- Dynamic classifier output size from taxonomy.classes
+- Optional ImageNet pretrained weights and feature-extractor freezing
+- Configurable classifier dropout
+- CLI model-info command and model-factory tests
+
 ## Planned
-- Duplicate/quality review-decision workflow
-- Model factory and training/evaluation
+- Image preprocessing and augmentation
+- Generic training loop, checkpointing, and evaluation metrics
 - Independent Karnataka regional holdout workflow
 - Regional adaptation
 - Human-reviewed correction queue and controlled retraining
@@ -39,11 +46,10 @@
 ## Research integrity
 - Preserve original source labels and provenance.
 - Never infer missing region, variety, or diagnosis metadata.
-- Quality metrics are screening signals and require crop/capture-specific threshold calibration.
-- Perceptual similarity is not proof that images are duplicates; manually review candidates.
-- Group-aware splitting reduces leakage only to the extent that grouping metadata is complete and accurate.
+- The current sugarcane class taxonomy is provisional; verify it against the dataset and domain experts.
+- A leaf-only classifier cannot be assumed to detect diseases requiring stalk, root, or whole-plant evidence.
 - Keep regional test data separate from training, validation, and adaptation.
 - Check third-party dataset licenses before redistribution.
 
 ## Testing status
-Tests have been added for quality flags, metric behavior, and source-file preservation. They have not been executed in the GitHub environment; run pytest -q locally after installing the package.
+Tests have been added for EfficientNet-B0 classifier dimensions, forward output shape, feature freezing, and configuration-driven class count. They have not been executed in the GitHub environment; install compatible PyTorch/torchvision and run pytest -q locally.
