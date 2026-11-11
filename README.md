@@ -1,16 +1,17 @@
 # Region-Adaptive Crop Disease Detection
 
-A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup and training.
+A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, and held-out test evaluation.
 
-## Current status: v0.9.1
+## Current status: v0.9.2
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
 - Perceptual near-duplicate screening remains candidate-only
 - Group-aware train/validation/test splits
 - EfficientNet-B0 model factory, configurable transforms, and training pipeline
+- Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
+- Test/train/validation path and provenance-group leakage checks
 - AgML sugarcane configuration aligned to all 11 source folder labels
-- GPU training defaults set to batch size 8 and zero DataLoader workers for a 6 GB RTX 3050 starting point
 
 ## Install (Windows)
 
@@ -77,12 +78,25 @@ If the smoke test completes and produces `best_model.pt`, `last_checkpoint.pt`, 
 
 Training reads train.csv and validation.csv only. It does not load test.csv. The best checkpoint is selected by validation loss.
 
+## Evaluate the held-out test split
+
+After training, evaluate the best checkpoint exactly once for the current experiment:
+
+    crop-adaptive evaluate --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --checkpoint runs/sugarcane_efficientnet_b0/best_model.pt --output runs/sugarcane_efficientnet_b0/evaluation --device cuda
+
+The evaluator checks that test images and available plant/field/capture-session identifiers do not overlap train or validation. It writes:
+- `evaluation_summary.json` and `evaluation_metrics.json`
+- `confusion_matrix.csv`
+- `predictions.csv`
+- `misclassified_images.csv`
+
+The confusion matrix uses true labels as rows and predicted labels as columns. Do not tune the model or thresholds on this test report and then continue to describe it as an untouched test result. If you make changes based on errors, create a new experiment and retain a separate final holdout.
+
 ## Research integrity and limitations
 
 - All current AgML manifest labels remain `unverified`; using `--include-unverified` is an explicit exploratory-training decision, not verification.
 - Do not invent missing provenance, region, district, variety, growth stage, plant, field, or capture-session metadata.
-- Keep the test split untouched until final evaluation.
-- Preserve a separate Karnataka regional holdout; do not use it for training, tuning, or early stopping.
+- Keep a separate regional Karnataka holdout independent; do not use it for training, tuning, or early stopping.
 - A leaf-only classifier cannot be assumed to diagnose conditions requiring stalk, root, or whole-plant evidence.
 - Check third-party dataset licenses before redistribution.
 - Keep downloaded images, generated runs, checkpoints, and local reports out of Git unless intentionally publishing a permitted artifact.
@@ -91,7 +105,7 @@ Training reads train.csv and validation.csv only. It does not load test.csv. The
 
 1. Dataset curation, metadata, exact/perceptual duplicate screening, and leakage-aware splits
 2. EfficientNet-B0 training
-3. Test-set evaluation, confusion matrix, per-class metrics, and error review
+3. Held-out test evaluation and error review
 4. Independent Karnataka regional holdout and regional fine-tuning
 5. Human-reviewed correction queue and controlled retraining
 6. Python API and package release

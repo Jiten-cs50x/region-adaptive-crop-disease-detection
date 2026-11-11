@@ -70,6 +70,15 @@ def main() -> None:
     train.add_argument("--num-workers", type=int)
     train.add_argument("--device", help="Optional torch device, for example cpu or cuda")
     train.add_argument("--no-pretrained", action="store_true")
+    evaluate = commands.add_parser("evaluate", help="Evaluate a trained checkpoint on the held-out test split")
+    evaluate.add_argument("--config", required=True)
+    evaluate.add_argument("--dataset", required=True)
+    evaluate.add_argument("--splits", required=True)
+    evaluate.add_argument("--checkpoint", required=True)
+    evaluate.add_argument("--output", default="runs/evaluation")
+    evaluate.add_argument("--batch-size", type=int, default=16)
+    evaluate.add_argument("--num-workers", type=int, default=0)
+    evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
 
     args = parser.parse_args()
     if args.command == "validate":
@@ -136,6 +145,17 @@ def main() -> None:
             pretrained_override=False if args.no_pretrained else None,
         )
         print(json.dumps(summary, indent=2))
+    elif args.command == "evaluate":
+        from crop_adaptive.training.evaluation import evaluate_from_config
+        with Path(args.config).open("r", encoding="utf-8") as stream:
+            config = yaml.safe_load(stream) or {}
+        summary = evaluate_from_config(
+            config, args.dataset, args.splits, args.checkpoint, args.output,
+            batch_size=args.batch_size, num_workers=args.num_workers,
+            device_name=args.device,
+        )
+        print(json.dumps(summary, indent=2))
+        print(f"\nEvaluation reports saved to: {Path(args.output).resolve()}")
 
 
 if __name__ == "__main__":

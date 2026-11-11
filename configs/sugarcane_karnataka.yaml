@@ -5,7 +5,7 @@ project:
   region: Karnataka
   country: India
   dataset_source: Project-AgML
-  version: 0.9.1
+  version: 0.9.2
 
 task:
   type: image_classification
