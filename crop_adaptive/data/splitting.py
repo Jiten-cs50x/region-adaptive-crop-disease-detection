@@ -33,6 +33,31 @@ class _UnionFind:
             self.rank[left] += 1
 
 
+def _load_duplicate_membership(path: str | Path | None) -> dict[str, str]:
+    """Load image_path -> duplicate group ID from the curation review CSV."""
+    if path is None:
+        return {}
+    report_path = Path(path).expanduser().resolve()
+    if not report_path.is_file():
+        raise FileNotFoundError(f"Duplicate review CSV does not exist: {report_path}")
+    membership: dict[str, str] = {}
+    with report_path.open("r", newline="", encoding="utf-8-sig") as stream:
+        reader = csv.DictReader(stream)
+        required = {"image_path", "group_id"}
+        missing = sorted(required - set(reader.fieldnames or []))
+        if missing:
+            raise ValueError(f"Duplicate review CSV missing columns: {', '.join(missing)}")
+        for row in reader:
+            image_path = (row.get("image_path") or "").strip().replace("\\", "/")
+            group_id = (row.get("group_id") or "").strip()
+            if image_path and group_id:
+                previous = membership.get(image_path)
+                if previous and previous != group_id:
+                    raise ValueError(f"Image appears in multiple duplicate groups: {image_path}")
+                membership[image_path] = group_id
+    return membership
+
+
 def create_group_splits(
     dataset_dir: str | Path,
     manifest_path: str | Path,
@@ -40,12 +65,13 @@ def create_group_splits(
     ratios: dict[str, float] | None = None,
     seed: int = 42,
     verified_only: bool = True,
+    duplicate_groups_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Create deterministic group-aware CSV splits without copying images.
 
-    Rows sharing any plant, field, or capture-session identifier are connected
-    and kept in one split. Missing group identifiers are treated as individual
-    images and are explicitly counted in the report.
+    Rows sharing plant, field, capture-session, or supplied exact-duplicate
+    group identifiers are connected and kept in one split. Missing identifiers
+    are treated as independent images and counted in the report.
     """
     root = Path(dataset_dir).expanduser().resolve()
     manifest = Path(manifest_path).expanduser().resolve()
@@ -55,6 +81,7 @@ def create_group_splits(
     if not manifest.is_file():
         raise FileNotFoundError(f"Manifest file does not exist: {manifest}")
 
+    duplicate_membership = _load_duplicate_membership(duplicate_groups_path)
     ratios = ratios or {"train": 0.70, "validation": 0.15, "test": 0.15}
     if set(ratios) != set(SPLITS) or any(value <= 0 for value in ratios.values()):
         raise ValueError("Ratios must contain positive train, validation, and test values.")
@@ -97,15 +124,23 @@ def create_group_splits(
 
     uf = _UnionFind(len(eligible))
     owner: dict[tuple[str, str], int] = {}
+    linked_by_duplicate_group = 0
     for index, row in enumerate(eligible):
-        for column in GROUP_COLUMNS:
-            value = (row.get(column) or "").strip()
-            if value:
-                key = (column, value)
-                if key in owner:
-                    uf.union(index, owner[key])
-                else:
-                    owner[key] = index
+        rel = (row.get("image_path") or "").strip().replace("\\", "/")
+        keys = [
+            (column, (row.get(column) or "").strip())
+            for column in GROUP_COLUMNS
+            if (row.get(column) or "").strip()
+        ]
+        duplicate_group = duplicate_membership.get(rel, "")
+        if duplicate_group:
+            keys.append(("exact_duplicate_group", duplicate_group))
+            linked_by_duplicate_group += 1
+        for key in keys:
+            if key in owner:
+                uf.union(index, owner[key])
+            else:
+                owner[key] = index
 
     groups: dict[int, list[int]] = defaultdict(list)
     for index in range(len(eligible)):
@@ -161,12 +196,10 @@ def create_group_splits(
             writer.writeheader()
             writer.writerows(split_rows)
 
-    group_split = {}
     for group in group_items:
         split_names = {assignment[index] for index in group}
         if len(split_names) != 1:
             raise RuntimeError("Internal error: a linked group crossed split boundaries.")
-        group_split[next(iter(group))] = next(iter(split_names))
 
     report = {
         "dataset_root": str(root),
@@ -174,22 +207,25 @@ def create_group_splits(
         "seed": seed,
         "ratios": ratios,
         "verified_only": verified_only,
+        "duplicate_groups_path": str(Path(duplicate_groups_path).expanduser().resolve()) if duplicate_groups_path else None,
         "eligible_images": len(eligible),
         "excluded_unverified": excluded_unverified,
         "excluded_invalid_or_duplicate_paths": excluded_invalid,
         "groups": len(groups),
+        "images_linked_by_exact_duplicate_group": linked_by_duplicate_group,
         "images_without_group_metadata": sum(
             not any((row.get(column) or "").strip() for column in GROUP_COLUMNS)
+            and (row.get("image_path") or "").strip().replace("\\", "/") not in duplicate_membership
             for row in eligible
         ),
         "split_image_counts": {split: len(assigned[split]) for split in SPLITS},
         "split_class_counts": {split: dict(sorted(counts[split].items())) for split in SPLITS},
         "notes": [
-            "Images connected by plant_id, field_id, or capture_session_id are assigned to one split.",
-            "Rows without group identifiers are treated as individual images; leakage through unknown relationships cannot be ruled out.",
-            "Only verified labels are included by default.",
+            "Images connected by plant_id, field_id, capture_session_id, or a supplied exact-duplicate group are assigned to one split.",
+            "Rows without group identifiers are treated as individual images; unknown relationships cannot be ruled out.",
+            "Only verified labels are included by default; --include-unverified is an explicit opt-in for source-labelled data requiring later review.",
             "Splits reference original image paths; images are not copied or modified.",
-            "Keep any regional adaptation holdout independent of these generic splits."
+            "Keep any regional adaptation holdout independent of these generic splits.",
         ],
     }
     (output / "split_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

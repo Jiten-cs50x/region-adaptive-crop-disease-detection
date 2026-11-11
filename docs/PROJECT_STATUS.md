@@ -28,24 +28,34 @@
 - Manifest-backed PyTorch Dataset and train/validation DataLoaders.
 - Configurable EfficientNet-B0 training loop with AdamW.
 - Reproducible random seeds and CUDA/CPU device selection.
-- Validation loss/accuracy monitoring and ReduceLROnPlateau scheduling.
-- Best-validation-loss and latest-epoch checkpoints.
-- Early stopping, training history, and summary JSON outputs.
-- Image path and plant/field/session group leakage checks between train and validation.
+- Validation loss/accuracy monitoring, scheduler, checkpoints, early stopping, history, and summary outputs.
 - Test split is not read by the training command.
 
+## Implemented in v0.9.0
+- Exact SHA-256 duplicate grouping during manifest curation.
+- Same-class exact duplicates reduced to one deterministic representative.
+- Cross-class exact duplicate groups excluded from the curated manifest pending human review.
+- Human-review CSV, per-image curation audit CSV, and curation summary JSON.
+- Source images and source manifest remain unchanged; label statuses are preserved.
+- Group-aware splitting can optionally connect rows using an exact-duplicate review CSV.
+- Explicit --include-unverified opt-in remains available for source-labelled datasets; no automatic label verification.
+
 ## Next
-- Independent evaluation using test.csv: accuracy, macro precision/recall/F1, per-class metrics, confusion matrix, and error review.
+- Finalize AgML taxonomy and label provenance policy before training.
+- Test-set evaluation: accuracy, macro precision/recall/F1, per-class metrics, confusion matrix, and error review.
 - Compare generic and regional model performance on an untouched Karnataka regional holdout.
 - Regional fine-tuning using training/adaptation data only.
 - Human-reviewed correction queue and controlled retraining.
 
 ## Research integrity
+- SHA-256 equality identifies byte-identical files but cannot determine which conflicting disease label is correct.
+- Perceptual hash matches are screening candidates, not confirmed duplicates.
 - Preserve source labels and provenance; never infer missing region, variety, or diagnosis metadata.
-- The example sugarcane taxonomy is provisional and must be verified against the actual dataset and domain experts.
+- Unverified source labels must not be described as independently verified.
 - A leaf-only classifier cannot be assumed to detect diseases requiring stalk, root, or whole-plant evidence.
 - Keep regional test data separate from training, validation, and adaptation.
 - Check third-party dataset licenses before redistribution.
 
 ## Testing status
-Training dataset tests have been added but have not been executed in this GitHub workflow. Install compatible PyTorch/torchvision and run pytest -q locally before using the training command.
+- Curation and duplicate-aware split tests have been added in v0.9.0.
+- Tests have not been executed in this GitHub editing workflow. Run pytest -q locally before training.

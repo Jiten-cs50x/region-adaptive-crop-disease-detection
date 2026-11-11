@@ -58,3 +58,42 @@ def test_unverified_rows_excluded_by_default(tmp_path):
     report = create_group_splits(dataset, manifest, tmp_path / "splits")
     assert report["eligible_images"] == 3
     assert report["excluded_unverified"] == 1
+
+
+def test_duplicate_group_csv_keeps_members_in_one_split(tmp_path):
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    manifest = tmp_path / "manifest.csv"
+    fields = ["image_path", "disease_label", "label_status"]
+    with manifest.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer.writeheader()
+        for i in range(12):
+            name = f"leaf_{i}.jpg"
+            Image.new("RGB", (32, 32)).save(dataset / name)
+            writer.writerow({
+                "image_path": name,
+                "disease_label": "healthy" if i % 2 == 0 else "rust",
+                "label_status": "verified",
+            })
+
+    duplicate_csv = tmp_path / "duplicate_review.csv"
+    with duplicate_csv.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=["group_id", "image_path"])
+        writer.writeheader()
+        writer.writerows([
+            {"group_id": "sha256-group-a", "image_path": "leaf_0.jpg"},
+            {"group_id": "sha256-group-a", "image_path": "leaf_1.jpg"},
+        ])
+
+    report = create_group_splits(
+        dataset, manifest, tmp_path / "splits",
+        duplicate_groups_path=duplicate_csv,
+    )
+    memberships = {}
+    for split in ("train", "validation", "test"):
+        with (tmp_path / "splits" / f"{split}.csv").open(newline="", encoding="utf-8") as stream:
+            for row in csv.DictReader(stream):
+                memberships[row["image_path"]] = split
+    assert memberships["leaf_0.jpg"] == memberships["leaf_1.jpg"]
+    assert report["images_linked_by_exact_duplicate_group"] == 2

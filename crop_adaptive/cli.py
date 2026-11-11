@@ -4,6 +4,7 @@ from pathlib import Path
 
 import yaml
 
+from crop_adaptive.data.curation import curate_exact_duplicates
 from crop_adaptive.data.manifest import create_manifest_template, validate_manifest
 from crop_adaptive.data.near_duplicates import find_near_duplicates
 from crop_adaptive.data.quality import analyze_image_quality
@@ -26,6 +27,10 @@ def main() -> None:
     manifest.add_argument("--dataset", required=True)
     manifest.add_argument("--manifest", required=True)
     manifest.add_argument("--output", default="reports/manifest_validation.json")
+    curate = commands.add_parser("curate", help="Create a conservative manifest after exact SHA-256 duplicate analysis")
+    curate.add_argument("--dataset", required=True)
+    curate.add_argument("--manifest", required=True)
+    curate.add_argument("--output", default="datasets/sugarcane/curated")
     split = commands.add_parser("split", help="Create deterministic group-aware train/validation/test CSVs")
     split.add_argument("--dataset", required=True)
     split.add_argument("--manifest", required=True)
@@ -35,6 +40,7 @@ def main() -> None:
     split.add_argument("--test-ratio", type=float, default=0.15)
     split.add_argument("--seed", type=int, default=42)
     split.add_argument("--include-unverified", action="store_true")
+    split.add_argument("--duplicate-groups", help="Optional cross_class_duplicate_review.csv to keep exact-duplicate members in one split")
     near = commands.add_parser("near-duplicates", help="Find perceptually similar images for manual review")
     near.add_argument("--dataset", required=True)
     near.add_argument("--output", default="reports/near_duplicates.json")
@@ -79,11 +85,16 @@ def main() -> None:
         report = validate_manifest(args.dataset, args.manifest, args.output)
         print(json.dumps(report, indent=2))
         print(f"\nReport saved to: {Path(args.output).resolve()}")
+    elif args.command == "curate":
+        report = curate_exact_duplicates(args.dataset, args.manifest, args.output)
+        print(json.dumps(report, indent=2))
+        print(f"\nCuration reports saved to: {Path(args.output).resolve()}")
     elif args.command == "split":
         report = create_group_splits(
             args.dataset, args.manifest, args.output,
             ratios={"train": args.train_ratio, "validation": args.validation_ratio, "test": args.test_ratio},
             seed=args.seed, verified_only=not args.include_unverified,
+            duplicate_groups_path=args.duplicate_groups,
         )
         print(json.dumps(report, indent=2))
         print(f"\nSplit files saved to: {Path(args.output).resolve()}")
@@ -99,7 +110,7 @@ def main() -> None:
             analysis_size=args.analysis_size,
         )
         print(json.dumps(report, indent=2))
-        print(f"\nQuality reports saved to: {Path(args.output).resolve()} and {Path(args.output).with_suffix('.csv').resolve()}")
+        print(f"\nQuality reports saved to: {Path(args.output).with_suffix('.json').resolve()} and {Path(args.output).with_suffix('.csv').resolve()}")
     elif args.command == "model-info":
         with Path(args.config).open("r", encoding="utf-8") as stream:
             config = yaml.safe_load(stream) or {}
