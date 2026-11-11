@@ -27,6 +27,7 @@ tests/test_model_factory.py
 tests/test_near_duplicates.py
 tests/test_quality.py
 tests/test_splitting.py
+tests/test_sugarcane_config.py
 tests/test_training_dataset.py
 tests/test_transforms.py
 tests/test_validator.py
