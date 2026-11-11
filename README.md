@@ -2,7 +2,7 @@
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, and held-out test evaluation.
 
-## Current status: v0.9.2
+## Current status: v0.10.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -11,6 +11,7 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - EfficientNet-B0 model factory, configurable transforms, and training pipeline
 - Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
 - Test/train/validation path and provenance-group leakage checks
+- Human misclassification review queue, blank reviewer decision fields, confidence-prioritized summary, and image contact sheets
 - AgML sugarcane configuration aligned to all 11 source folder labels
 
 ## Install (Windows)
@@ -91,6 +92,14 @@ The evaluator checks that test images and available plant/field/capture-session 
 - `misclassified_images.csv`
 
 The confusion matrix uses true labels as rows and predicted labels as columns. Do not tune the model or thresholds on this test report and then continue to describe it as an untouched test result. If you make changes based on errors, create a new experiment and retain a separate final holdout.
+
+## Review misclassified images
+
+Create a human-review queue and contact sheets from the evaluation CSV (the command does not modify source images, labels, manifests, splits, or metrics):
+
+    crop-adaptive review-errors --dataset datasets/sugarcane/raw --misclassified runs/sugarcane_efficientnet_b0/evaluation/misclassified_images.csv --output runs/sugarcane_efficientnet_b0/error_review
+
+The output contains review_queue.csv, review_summary.json, REVIEW_GUIDE.md, and numbered contact sheets. Fill review_status, corrected_label, reviewer, and review_notes manually. A high-confidence error is a review priority, not proof that the source label is wrong. Do not automatically replace source labels with model predictions. Preserve the original held-out test report; if reviewed samples are used for training or model selection, use a new experiment and a separate final holdout.
 
 ## Research integrity and limitations
 

@@ -46,13 +46,19 @@
 - EfficientNet-B0 GPU starting defaults set to batch size 8 and num_workers 0 for the user's RTX 3050 6 GB.
 - Added tests for exact taxonomy/configuration consistency.
 
+## Implemented in v0.10.0
+- Human-review queue generated from misclassified_images.csv with blank decision fields; no automatic relabeling.
+- Numbered image contact sheets, confidence/error-pair summary, missing-image reporting, and reviewer guide.
+- Dataset-root path traversal protection; source images and evaluation artifacts remain unchanged.
+
 ## Next
 - Regenerate splits from the final curated manifest and inspect split_report.json.
 - Run a short GPU smoke test before the full training run.
 - Test-set evaluation: accuracy, macro precision/recall/F1, per-class metrics, confusion matrix, and error review.
 - Compare generic and regional model performance on an untouched Karnataka regional holdout.
 - Regional fine-tuning using training/adaptation data only.
-- Human-reviewed correction queue and controlled retraining.
+- Apply only explicitly approved human label corrections to a new manifest version, preserving a full audit trail.
+- Cross-split perceptual near-duplicate audit and independent regional holdout evaluation.
 
 ## Research integrity
 - SHA-256 equality identifies byte-identical files but cannot determine which conflicting disease label is correct.

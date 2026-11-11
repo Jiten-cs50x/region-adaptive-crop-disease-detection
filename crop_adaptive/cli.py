@@ -79,6 +79,12 @@ def main() -> None:
     evaluate.add_argument("--batch-size", type=int, default=16)
     evaluate.add_argument("--num-workers", type=int, default=0)
     evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
+    review_errors = commands.add_parser("review-errors", help="Create a human-review CSV and image contact sheets for model errors")
+    review_errors.add_argument("--dataset", required=True, help="Dataset root containing image paths from the error CSV")
+    review_errors.add_argument("--misclassified", required=True, help="Path to evaluation misclassified_images.csv")
+    review_errors.add_argument("--output", default="runs/error_review")
+    review_errors.add_argument("--per-sheet", type=int, default=12)
+    review_errors.add_argument("--columns", type=int, default=3)
 
     args = parser.parse_args()
     if args.command == "validate":
@@ -145,6 +151,12 @@ def main() -> None:
             pretrained_override=False if args.no_pretrained else None,
         )
         print(json.dumps(summary, indent=2))
+    elif args.command == "review-errors":
+        from crop_adaptive.data.review import create_misclassification_review
+        summary = create_misclassification_review(args.dataset, args.misclassified, args.output,
+                                                  per_sheet=args.per_sheet, columns=args.columns)
+        print(json.dumps(summary, indent=2))
+        print(f"\nHuman review files saved to: {Path(args.output).resolve()}")
     elif args.command == "evaluate":
         from crop_adaptive.training.evaluation import evaluate_from_config
         with Path(args.config).open("r", encoding="utf-8") as stream:
