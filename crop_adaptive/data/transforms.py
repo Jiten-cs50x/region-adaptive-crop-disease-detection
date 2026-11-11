@@ -5,6 +5,11 @@ from typing import Any
 from PIL import ImageOps
 
 
+def _prepare_rgb(image):
+    """Apply EXIF orientation and convert an image to RGB (picklable for workers)."""
+    return ImageOps.exif_transpose(image).convert("RGB")
+
+
 def _torchvision_transforms():
     try:
         from torchvision import transforms
@@ -26,14 +31,12 @@ def _validate_transform_config(config: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("transforms.input_size must be at least 32")
     if resize_size < input_size:
         raise ValueError("transforms.resize_size must be greater than or equal to input_size")
-
     mean = transform_config.get("mean", [0.485, 0.456, 0.406])
     std = transform_config.get("std", [0.229, 0.224, 0.225])
     if len(mean) != 3 or len(std) != 3:
         raise ValueError("transforms.mean and transforms.std must each contain three RGB values")
     if any(float(value) <= 0 for value in std):
         raise ValueError("transforms.std values must be greater than zero")
-
     augmentation = transform_config.get("augmentation", {})
     scale = augmentation.get("random_resized_crop_scale", [0.85, 1.0])
     if len(scale) != 2 or not 0 < float(scale[0]) <= float(scale[1]) <= 1:
@@ -42,8 +45,7 @@ def _validate_transform_config(config: dict[str, Any]) -> dict[str, Any]:
     if not 0 <= rotation <= 45:
         raise ValueError("rotation_degrees must be between 0 and 45")
     return {
-        "input_size": input_size,
-        "resize_size": resize_size,
+        "input_size": input_size, "resize_size": resize_size,
         "mean": [float(value) for value in mean],
         "std": [float(value) for value in std],
         "augmentation": augmentation,
@@ -56,22 +58,17 @@ def build_transforms(config: dict[str, Any], split: str = "train"):
     """Build an EfficientNet-compatible transform for train, validation, or test."""
     if split not in {"train", "validation", "test", "predict"}:
         raise ValueError("split must be one of: train, validation, test, predict")
-
     values = _validate_transform_config(config)
     transforms, interpolation = _torchvision_transforms()
     size = values["input_size"]
-    operations = [
-        transforms.Lambda(lambda image: ImageOps.exif_transpose(image).convert("RGB"))
-    ]
+    operations = [transforms.Lambda(_prepare_rgb)]
     if split == "train":
         aug = values["augmentation"]
         operations.extend([
             transforms.RandomResizedCrop(
-                size,
-                scale=values["scale"],
+                size, scale=values["scale"],
                 ratio=tuple(aug.get("random_resized_crop_ratio", [0.9, 1.1])),
-                interpolation=interpolation.BILINEAR,
-                antialias=True,
+                interpolation=interpolation.BILINEAR, antialias=True,
             ),
             transforms.RandomHorizontalFlip(p=float(aug.get("horizontal_flip_probability", 0.5))),
         ])
@@ -93,7 +90,6 @@ def build_transforms(config: dict[str, Any], split: str = "train"):
             transforms.Resize(values["resize_size"], interpolation=interpolation.BILINEAR, antialias=True),
             transforms.CenterCrop(size),
         ])
-
     operations.extend([
         transforms.ToTensor(),
         transforms.Normalize(mean=values["mean"], std=values["std"]),
