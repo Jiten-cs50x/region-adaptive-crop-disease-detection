@@ -1,0 +1,131 @@
+
+import csv
+import hashlib
+import json
+from pathlib import Path
+from collections import defaultdict, Counter
+
+ROOT = Path("datasets/sugarcane/raw/project_agml")
+REPORTS = Path("datasets/sugarcane/reports")
+REPORTS.mkdir(parents=True, exist_ok=True)
+
+# Group images by exact SHA-256 hash
+hash_groups = defaultdict(list)
+
+for path in ROOT.rglob("*"):
+    if not path.is_file():
+        continue
+
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        relative_path = path.relative_to(ROOT).as_posix()
+        class_name = path.relative_to(ROOT).parts[0]
+
+        hash_groups[digest].append({
+            "image_path": relative_path,
+            "class_name": class_name
+        })
+    except OSError as error:
+        print("Could not read:", path, error)
+
+# Keep groups containing multiple files
+duplicate_groups = {
+    digest: images
+    for digest, images in hash_groups.items()
+    if len(images) > 1
+}
+
+review_rows = []
+cross_class_groups = []
+same_class_groups = []
+
+for index, (digest, images) in enumerate(
+    duplicate_groups.items(), start=1
+):
+    classes = sorted(set(item["class_name"] for item in images))
+    is_cross_class = len(classes) > 1
+
+    if is_cross_class:
+        cross_class_groups.append({
+            "group_id": index,
+            "sha256": digest,
+            "classes": classes,
+            "images": images
+        })
+    else:
+        same_class_groups.append({
+            "group_id": index,
+            "sha256": digest,
+            "classes": classes,
+            "images": images
+        })
+
+    for item in images:
+        review_rows.append({
+            "group_id": index,
+            "sha256": digest,
+            "image_path": item["image_path"],
+            "class_name": item["class_name"],
+            "group_size": len(images),
+            "group_classes": "|".join(classes),
+            "cross_class": is_cross_class,
+            "review_status": "pending"
+        })
+
+# Write detailed CSV for manual review
+csv_path = REPORTS / "exact_duplicate_review.csv"
+
+with open(csv_path, "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "group_id", "sha256", "image_path",
+            "class_name", "group_size", "group_classes",
+            "cross_class", "review_status"
+        ]
+    )
+    writer.writeheader()
+    writer.writerows(review_rows)
+
+# Summary
+summary = {
+    "total_images_scanned": sum(len(v) for v in hash_groups.values()),
+    "unique_sha256_hashes": len(hash_groups),
+    "duplicate_groups": len(duplicate_groups),
+    "cross_class_duplicate_groups": len(cross_class_groups),
+    "same_class_duplicate_groups": len(same_class_groups),
+    "files_in_duplicate_groups": sum(
+        len(images) for images in duplicate_groups.values()
+    ),
+    "cross_class_duplicate_files": sum(
+        len(group["images"]) for group in cross_class_groups
+    ),
+    "duplicate_group_size_distribution": dict(
+        Counter(len(images) for images in duplicate_groups.values())
+    ),
+    "cross_class_examples": cross_class_groups[:20]
+}
+
+with open(
+    REPORTS / "exact_duplicate_summary.json",
+    "w",
+    encoding="utf-8"
+) as f:
+    json.dump(summary, f, indent=2)
+
+print(json.dumps({
+    key: value
+    for key, value in summary.items()
+    if key != "cross_class_examples"
+}, indent=2))
+
+print("\nCROSS-CLASS EXAMPLES:")
+for group in cross_class_groups[:10]:
+    print("\nGroup:", group["group_id"])
+    print("Classes:", group["classes"])
+    for image in group["images"]:
+        print(" ", image["image_path"])
+
+print("\nReports created:")
+print(csv_path)
+print(REPORTS / "exact_duplicate_summary.json")
