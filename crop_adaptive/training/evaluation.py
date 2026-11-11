@@ -5,12 +5,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from torch.utils.data import DataLoader
-
 from crop_adaptive.data.transforms import build_transforms
 from crop_adaptive.models.efficientnet import build_model_from_config
-from crop_adaptive.training.engine import ManifestImageDataset, _read_split_metadata
-
 
 def classification_metrics(confusion_matrix, classes: list[str]) -> dict[str, Any]:
     """Calculate accuracy and macro/weighted classification metrics.
@@ -85,6 +81,9 @@ def evaluate_from_config(
 ) -> dict[str, Any]:
     """Evaluate a trusted local checkpoint once against the held-out test split."""
     import torch
+    from torch.utils.data import DataLoader
+
+    from crop_adaptive.training.engine import ManifestImageDataset, _read_split_metadata
 
     if batch_size < 1 or num_workers < 0:
         raise ValueError("batch_size must be positive and num_workers non-negative")
