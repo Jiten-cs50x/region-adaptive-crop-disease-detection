@@ -4,6 +4,7 @@ pyproject.toml
 crop_adaptive/__init__.py
 crop_adaptive/cli.py
 crop_adaptive/data/__init__.py
+crop_adaptive/data/curation.py
 crop_adaptive/data/manifest.py
 crop_adaptive/data/near_duplicates.py
 crop_adaptive/data/quality.py
@@ -20,6 +21,7 @@ region_adaptive_crop_disease.egg-info/dependency_links.txt
 region_adaptive_crop_disease.egg-info/entry_points.txt
 region_adaptive_crop_disease.egg-info/requires.txt
 region_adaptive_crop_disease.egg-info/top_level.txt
+tests/test_curation.py
 tests/test_manifest.py
 tests/test_model_factory.py
 tests/test_near_duplicates.py
