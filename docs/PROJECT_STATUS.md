@@ -40,8 +40,15 @@
 - Group-aware splitting can optionally connect rows using an exact-duplicate review CSV.
 - Explicit --include-unverified opt-in remains available for source-labelled datasets; no automatic label verification.
 
+## Implemented in v0.9.1
+- Sugarcane config updated from six provisional classes to the 11 exact AgML source folder labels.
+- AgML source and unverified label status recorded explicitly in config.
+- EfficientNet-B0 GPU starting defaults set to batch size 8 and num_workers 0 for the user's RTX 3050 6 GB.
+- Added tests for exact taxonomy/configuration consistency.
+
 ## Next
-- Finalize AgML taxonomy and label provenance policy before training.
+- Regenerate splits from the final curated manifest and inspect split_report.json.
+- Run a short GPU smoke test before the full training run.
 - Test-set evaluation: accuracy, macro precision/recall/F1, per-class metrics, confusion matrix, and error review.
 - Compare generic and regional model performance on an untouched Karnataka regional holdout.
 - Regional fine-tuning using training/adaptation data only.
@@ -57,5 +64,5 @@
 - Check third-party dataset licenses before redistribution.
 
 ## Testing status
-- Curation and duplicate-aware split tests have been added in v0.9.0.
-- Tests have not been executed in this GitHub editing workflow. Run pytest -q locally before training.
+- Curation, duplicate-aware split, model factory, transforms, and training dataset tests are present.
+- The user reports all tests executed locally after installing CUDA-enabled PyTorch; exact pass/skip/failure counts should be retained from their final pytest summary.

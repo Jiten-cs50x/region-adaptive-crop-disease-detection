@@ -1,10 +1,11 @@
 project:
-  name: sugarcane-karnataka
+  name: sugarcane-agml-karnataka
   crop: sugarcane
   scientific_name: "Saccharum officinarum"
   region: Karnataka
   country: India
-  version: 0.1.0
+  dataset_source: Project-AgML
+  version: 0.9.1
 
 task:
   type: image_classification
@@ -36,7 +37,9 @@ transforms:
 training:
   seed: 42
   epochs: 30
-  batch_size: 16
+  # Conservative starting point for an RTX 3050 with 6 GB VRAM.
+  # If CUDA reports out-of-memory, retry with --batch-size 4.
+  batch_size: 8
   learning_rate: 0.0003
   weight_decay: 0.0001
   num_workers: 0
@@ -55,12 +58,19 @@ validation:
   compute_sha256: true
 
 taxonomy:
-  version: "1.0.0"
-  # Provisional foliar classes; confirm labels and scope against the final dataset.
+  version: "agml-project-sugarcane-11-class-v1"
+  source: "Project-AgML"
+  label_status: "unverified"
+  # Exact source folder labels. These are source-provided labels, not independently verified diagnoses.
   classes:
-    - healthy
-    - rust
-    - yellow_leaf_disease
-    - sugarcane_mosaic
-    - cercospora_leaf_spot
-    - helminthosporium_leaf_spot
+    - Banded Chlorosis
+    - Brown Spot
+    - BrownRust
+    - Dried
+    - Grassy shoot
+    - Healthy
+    - Pokkah Boeng
+    - Sett Rot
+    - Smut
+    - Viral Disease
+    - Yellow Leaf
