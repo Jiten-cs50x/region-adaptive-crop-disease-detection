@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "region-adaptive-crop-disease"
-version = "0.2.0"
-description = "Configurable pipeline for crop disease dataset validation and regional adaptation."
+version = "0.3.0"
+description = "Configurable pipeline for crop disease dataset validation and leakage-aware splitting."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}
 dependencies = ["Pillow>=10.0", "PyYAML>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
 
 [project.scripts]
 crop-adaptive = "crop_adaptive.cli:main"
