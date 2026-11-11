@@ -50,7 +50,6 @@ def curate_exact_duplicates(
             raise ValueError(f"Manifest missing required columns: {', '.join(missing)}")
         rows = list(reader)
 
-    # Validate paths and hash each unique manifest path only once.
     valid: list[dict[str, str]] = []
     invalid: list[dict[str, str]] = []
     seen_paths: set[str] = set()
@@ -118,7 +117,6 @@ def curate_exact_duplicates(
     same_class_removed = 0
     cross_class_excluded = 0
 
-    # Process by hash for deterministic group identifiers and output ordering.
     for digest in sorted(hash_to_rows):
         members = sorted(hash_to_rows[digest], key=lambda item: item["image_path"])
         labels = sorted({member["disease_label"].strip() for member in members})
@@ -186,6 +184,17 @@ def curate_exact_duplicates(
             "disease_label": member["disease_label"],
             "disposition": "included",
             "reason": "unique_sha256",
+        })
+
+    # Invalid source rows are also represented in the audit trail.
+    for item in invalid:
+        audit_rows.append({
+            "image_path": item.get("image_path", ""),
+            "sha256": "",
+            "group_id": "",
+            "disease_label": "",
+            "disposition": "excluded",
+            "reason": item["reason"],
         })
 
     curated_path = output / "curated_manifest.csv"

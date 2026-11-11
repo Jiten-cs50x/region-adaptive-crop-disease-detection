@@ -36,20 +36,22 @@ Create a conservative curated manifest using exact SHA-256 equality:
 Curation outputs:
 - curated_manifest.csv: unique images plus one representative per same-class exact-duplicate group
 - cross_class_duplicate_review.csv: all members of cross-class exact-duplicate groups, with review_status=pending
-- curation_audit.csv: included/excluded decision and reason for each valid source image
+- curation_audit.csv: included/excluded decision and reason for each source row, including invalid rows
 - curation_summary.json: counts, class distribution, paths, and limitations
 
 Curation never modifies or deletes source images or the source manifest. SHA-256 equality proves byte-identical files, not that a disease label is biologically correct. Same-class duplicate groups keep the lexicographically first image_path. Every member of a cross-class exact-duplicate group is excluded from the curated manifest pending human review. The original label_status is preserved; curation never upgrades unverified labels. Near-duplicate perceptual-hash candidates are not automatically removed.
 
 ## Create splits
 
-For AgML source labels that remain unverified, use the explicit opt-in below only after reviewing the dataset's annotation documentation and accepting that labels are source-provided rather than independently verified:
+For the AgML source labels that remain unverified, use the explicit opt-in below only after reviewing the dataset's annotation documentation and accepting that labels are source-provided rather than independently verified:
 
     crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/splits --include-unverified --seed 42
 
-For other datasets, verified labels remain required by default. Optional exact-duplicate group linking is available when splitting a manifest that still contains duplicate members:
+For other datasets, verified labels remain required by default. Optional exact-duplicate group linking is available when splitting a manifest that intentionally retains duplicate members after label conflicts have been resolved:
 
-    crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/dataset_manifest.csv --output datasets/sugarcane/splits_all --include-unverified --duplicate-groups datasets/sugarcane/curated/cross_class_duplicate_review.csv --seed 42
+    crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/reviewed_manifest.csv --output datasets/sugarcane/reviewed_splits --include-unverified --duplicate-groups datasets/sugarcane/curated/curation_audit.csv --seed 42
+
+Do not use the unreviewed source manifest as a training manifest while cross-class exact-duplicate conflicts remain unresolved. The duplicate-group option only prevents group members from crossing splits; it does not resolve label conflicts.
 
 The split command keeps shared plant_id, field_id, capture_session_id, and supplied exact-duplicate group IDs together. It references source images and does not copy them. Review split_report.json. Missing group/provenance metadata means unknown relationships cannot be ruled out. Keep regional evaluation data independent.
 
