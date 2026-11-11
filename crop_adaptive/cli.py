@@ -5,6 +5,7 @@ from pathlib import Path
 import yaml
 
 from crop_adaptive.data.manifest import create_manifest_template, validate_manifest
+from crop_adaptive.data.near_duplicates import find_near_duplicates
 from crop_adaptive.data.splitting import create_group_splits
 from crop_adaptive.data.validator import validate_dataset
 
@@ -36,6 +37,12 @@ def main() -> None:
     split.add_argument("--seed", type=int, default=42)
     split.add_argument("--include-unverified", action="store_true")
 
+    near = commands.add_parser("near-duplicates", help="Find perceptually similar images for manual review")
+    near.add_argument("--dataset", required=True)
+    near.add_argument("--output", default="reports/near_duplicates.json")
+    near.add_argument("--threshold", type=int, default=6, help="Maximum 64-bit hash Hamming distance")
+    near.add_argument("--hash-size", type=int, default=8)
+
     args = parser.parse_args()
     if args.command == "validate":
         with Path(args.config).open("r", encoding="utf-8") as stream:
@@ -65,6 +72,10 @@ def main() -> None:
         )
         print(json.dumps(report, indent=2))
         print(f"\nSplit files saved to: {Path(args.output).resolve()}")
+    elif args.command == "near-duplicates":
+        report = find_near_duplicates(args.dataset, args.output, args.threshold, args.hash_size)
+        print(json.dumps(report, indent=2))
+        print(f"\nNear-duplicate report saved to: {Path(args.output).resolve()}")
 
 
 if __name__ == "__main__":
