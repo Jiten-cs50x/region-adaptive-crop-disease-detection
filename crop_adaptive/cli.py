@@ -6,6 +6,7 @@ import yaml
 
 from crop_adaptive.data.manifest import create_manifest_template, validate_manifest
 from crop_adaptive.data.near_duplicates import find_near_duplicates
+from crop_adaptive.data.quality import analyze_image_quality
 from crop_adaptive.data.splitting import create_group_splits
 from crop_adaptive.data.validator import validate_dataset
 
@@ -43,6 +44,17 @@ def main() -> None:
     near.add_argument("--threshold", type=int, default=6, help="Maximum 64-bit hash Hamming distance")
     near.add_argument("--hash-size", type=int, default=8)
 
+    quality = commands.add_parser("quality", help="Measure image quality and flag samples for manual review")
+    quality.add_argument("--dataset", required=True)
+    quality.add_argument("--output", default="reports/image_quality.json")
+    quality.add_argument("--min-width", type=int, default=128)
+    quality.add_argument("--min-height", type=int, default=128)
+    quality.add_argument("--min-brightness", type=float, default=35.0)
+    quality.add_argument("--max-brightness", type=float, default=220.0)
+    quality.add_argument("--min-contrast", type=float, default=20.0)
+    quality.add_argument("--min-sharpness", type=float, default=10.0)
+    quality.add_argument("--analysis-size", type=int, default=256)
+
     args = parser.parse_args()
     if args.command == "validate":
         with Path(args.config).open("r", encoding="utf-8") as stream:
@@ -76,6 +88,20 @@ def main() -> None:
         report = find_near_duplicates(args.dataset, args.output, args.threshold, args.hash_size)
         print(json.dumps(report, indent=2))
         print(f"\nNear-duplicate report saved to: {Path(args.output).resolve()}")
+    elif args.command == "quality":
+        report = analyze_image_quality(
+            args.dataset,
+            args.output,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            min_brightness=args.min_brightness,
+            max_brightness=args.max_brightness,
+            min_contrast=args.min_contrast,
+            min_sharpness=args.min_sharpness,
+            analysis_size=args.analysis_size,
+        )
+        print(json.dumps(report, indent=2))
+        print(f"\nQuality reports saved to: {Path(args.output).resolve()} and {Path(args.output).with_suffix('.csv').resolve()}")
 
 
 if __name__ == "__main__":

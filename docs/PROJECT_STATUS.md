@@ -22,9 +22,14 @@
 - Candidate-pair and connected-review-group JSON report
 - Unreadable image reporting; no source image modification
 
+## Implemented in v0.5.0
+- Image dimensions, grayscale brightness, contrast, and approximate sharpness analysis
+- Configurable thresholds and analysis resize limit
+- JSON and CSV quality reports with per-image review flags
+- Non-destructive operation; no automatic deletion or dataset exclusion
+
 ## Planned
-- Duplicate review/decision workflow
-- Image-quality analysis
+- Duplicate/quality review-decision workflow
 - Model factory and training/evaluation
 - Independent Karnataka regional holdout workflow
 - Regional adaptation
@@ -34,10 +39,11 @@
 ## Research integrity
 - Preserve original source labels and provenance.
 - Never infer missing region, variety, or diagnosis metadata.
+- Quality metrics are screening signals and require crop/capture-specific threshold calibration.
 - Perceptual similarity is not proof that images are duplicates; manually review candidates.
-- Group-aware splits reduce leakage only to the extent that grouping metadata is complete and accurate.
+- Group-aware splitting reduces leakage only to the extent that grouping metadata is complete and accurate.
 - Keep regional test data separate from training, validation, and adaptation.
 - Check third-party dataset licenses before redistribution.
 
 ## Testing status
-Tests have been added for perceptual hash similarity, candidate reporting, and source-file preservation. They have not been executed in the GitHub environment; run pytest -q locally after installing the package.
+Tests have been added for quality flags, metric behavior, and source-file preservation. They have not been executed in the GitHub environment; run pytest -q locally after installing the package.

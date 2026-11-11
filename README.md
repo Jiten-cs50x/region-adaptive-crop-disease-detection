@@ -1,15 +1,16 @@
 # Region-Adaptive Crop Disease Detection
 
-A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-verified feedback. The current implementation covers dataset auditing, metadata integrity, leakage-aware splitting, and perceptual duplicate screening; model training and regional adaptation are planned, not yet implemented.
+A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-verified feedback. The current implementation covers dataset auditing, metadata integrity, leakage-aware splitting, perceptual duplicate screening, and basic image-quality analysis; model training and regional adaptation are planned, not yet implemented.
 
-## Current status: v0.4.0
+## Current status: v0.5.0
 - YAML-based project and dataset configuration
 - Class-folder image inventory and image readability checks
 - SHA-256 exact duplicate detection
 - CSV metadata manifest template and validation
 - Deterministic group-aware train/validation/test split generation
 - Perceptual near-duplicate candidate detection using difference hash
-- JSON reports with candidate pairs and connected review groups
+- Image-quality metrics: resolution, brightness, contrast, and approximate sharpness
+- JSON and CSV quality reports with manual-review flags
 - Installable local Python package and CLI
 
 ## Quick start (Windows)
@@ -38,7 +39,17 @@ Fill one row per image. Use paths relative to the dataset root. Record source, l
 
 The command uses a 64-bit difference hash by default. Lower thresholds are stricter; higher thresholds return more candidates. Inspect the report manually. Do not automatically remove similar images: different leaves can look alike, and the hash can miss crops, rotations, or substantial edits.
 
-### 5. Generate group-aware splits
+### 5. Analyze image quality
+
+    crop-adaptive quality --dataset datasets/sugarcane/raw --output datasets/sugarcane/reports/image_quality.json
+
+This writes a JSON report and a CSV with image dimensions, grayscale brightness, contrast, an approximate edge-variance sharpness metric, and review flags. Thresholds can be tuned with --min-width, --min-height, --min-brightness, --max-brightness, --min-contrast, --min-sharpness, and --analysis-size. Example:
+
+    crop-adaptive quality --dataset datasets/sugarcane/raw --output datasets/sugarcane/reports/image_quality.json --min-brightness 30 --max-brightness 225 --min-contrast 18
+
+Flags are not automatic exclusions. Calibrate thresholds using representative sugarcane images and inspect flagged samples before deciding whether they are suitable for training.
+
+### 6. Generate group-aware splits
 
     crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/dataset_manifest.csv --output datasets/sugarcane/splits --seed 42
 
@@ -55,14 +66,16 @@ Recommended: source_url, country, region, state, district, collection_date (YYYY
 - validation_report.json and image_inventory.csv: raw image audit
 - manifest_validation.json: metadata and path validation
 - near_duplicates.json: candidate pairs, hash distances, and connected review groups
+- image_quality.json and image_quality.csv: quality metrics and review flags
 - train.csv, validation.csv, test.csv: split assignments referencing original images
 - split_report.json: class counts, exclusions, grouping coverage, and seed
 
 ## Research integrity and limitations
 
-- Perceptual similarity is a screening signal, not proof of duplicate content or identical plants.
+- Quality flags are screening signals, not proof that an image is unusable; natural lighting and visible symptoms affect metrics.
+- Sharpness is an approximate edge-variance metric, not a calibrated blur score.
+- Perceptual similarity is not proof that images are duplicates; manually review candidates.
 - Difference hash is useful for resized/recompressed copies but can miss crops, rotations, and substantial edits.
-- Review candidate pairs before excluding any sample; preserve source files and record review decisions.
 - Group-aware splitting reduces leakage only when identifiers are accurate and sufficiently complete.
 - Images without group identifiers are treated as independent samples; unknown relationships may still leak.
 - Keep a separately collected Karnataka regional holdout untouched until final evaluation.
@@ -70,8 +83,8 @@ Recommended: source_url, country, region, state, district, collection_date (YYYY
 
 ## Roadmap
 
-1. Dataset audit, metadata manifest, group-aware splits, and near-duplicate screening
-2. Image-quality analysis and duplicate-review workflow
+1. Dataset audit, metadata manifest, group-aware splits, duplicate and quality screening
+2. Duplicate/quality review-decision workflow
 3. Configurable PyTorch model factory (EfficientNet-B0, ResNet)
 4. Generic training and evaluation
 5. Regional fine-tuning and domain evaluation
