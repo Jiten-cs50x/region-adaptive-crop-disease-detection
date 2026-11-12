@@ -60,7 +60,7 @@ def headers(role="farmer", user="farmer-1"):
 
 def test_health_and_authentication(client):
     assert client.get("/health").status_code == 200
-    assert client.get("/api/my-submissions").status_code == 401
+    assert client.get("/api/my-submissions", headers={"X-User-ID": "farmer-1"}).status_code == 401
     assert client.get("/api/my-submissions", headers=headers()).status_code == 200
 
 
