@@ -4,7 +4,7 @@
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, held-out test evaluation, and evidence-gated metadata recovery.
 
-## Current status: v0.13.0
+## Current status: v0.14.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
