@@ -20,6 +20,7 @@ crop_adaptive/models/efficientnet.py
 crop_adaptive/training/__init__.py
 crop_adaptive/training/engine.py
 crop_adaptive/training/evaluation.py
+crop_adaptive/training/robustness.py
 region_adaptive_crop_disease.egg-info/PKG-INFO
 region_adaptive_crop_disease.egg-info/SOURCES.txt
 region_adaptive_crop_disease.egg-info/dependency_links.txt
@@ -36,6 +37,7 @@ tests/test_near_duplicates.py
 tests/test_provenance.py
 tests/test_quality.py
 tests/test_review.py
+tests/test_robustness.py
 tests/test_splitting.py
 tests/test_sugarcane_config.py
 tests/test_training_dataset.py

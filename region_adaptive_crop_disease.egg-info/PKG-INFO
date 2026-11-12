@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: region-adaptive-crop-disease
-Version: 0.14.0
+Version: 0.15.0
 Summary: Configurable crop disease data curation, EfficientNet-B0 training, and regional adaptation.
 License: MIT License
         
@@ -38,11 +38,11 @@ Dynamic: license-file
 
 # Region-Adaptive Crop Disease Detection
 
-**Package version: v0.14.0**
+**Package version: v0.15.0**
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, held-out test evaluation, and evidence-gated metadata recovery.
 
-## Current status: v0.14.0
+## Current status: v0.15.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -50,6 +50,7 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - Group-aware train/validation/test splits
 - EfficientNet-B0 model factory, configurable transforms, and training pipeline
 - Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
+- Controlled robustness evaluation for brightness, contrast, blur, resolution, JPEG compression, and rotation, with per-class metrics and confusion matrices
 - Test/train/validation path and provenance-group leakage checks
 - Human misclassification review queue and image contact sheets
 - Manifest-driven acquisition-pattern audit
@@ -138,7 +139,7 @@ The recovery command checks row number plus image path and disease label to dete
 
 After recovery, run `validate-manifest`, then create a new curation/split/training experiment as appropriate. Do not retroactively replace metadata in old splits or checkpoints. Missing geographic metadata must remain unknown: do not infer Karnataka from the project's target region, image appearance, folder names, or model output.
 
-## Acquisition bias screening (v0.14.0)
+## Acquisition bias screening (v0.15.0)
 
 Run the acquisition audit first to create per-image features, then calculate descriptive associations between disease labels and capture-related features:
 
@@ -148,6 +149,23 @@ Run the acquisition audit first to create per-image features, then calculate des
 The bias report includes eta-squared for numeric features and bias-corrected Cramer's V for categorical features, with class-wise distributions. These are descriptive association measures, not causal tests and not proof of shortcut learning. Whole-image mean RGB is not a background measurement; background-specific analysis requires a separately validated foreground/background method. Do not use the held-out test set to choose thresholds or model changes.
 
 The v2 manifest in the example is a new manifest version. Before using it, run `validate-manifest` and regenerate a new split directory as a separate experiment. The existing split files, checkpoint, and held-out evaluation remain untouched.
+
+
+## Controlled robustness evaluation (v0.15.0)
+
+Evaluate the existing checkpoint on the unchanged held-out test split under controlled image corruptions:
+
+    crop-adaptive robustness --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --checkpoint runs/sugarcane_efficientnet_b0/best_model.pt --output runs/sugarcane_efficientnet_b0/robustness --batch-size 8 --device cuda
+
+The command first evaluates clean images using the deterministic test transform, then evaluates the same samples and labels with:
+- Brightness factors: 0.65, 0.80, 1.20, 1.40
+- Contrast factors: 0.60, 0.80, 1.20, 1.40
+- Gaussian blur radii: 0.6, 1.2, 2.0
+- Resolution scale factors: 0.75, 0.50, 0.25 (downsample, then resize to original dimensions)
+- JPEG encoder quality: 50, 25, 10
+- Rotations: 90, 180, 270 degrees on a fixed canvas
+
+Outputs include robustness_report.json, robustness_metrics.csv, and robustness_predictions.csv. Accuracy and macro-F1 drops are absolute differences from the clean baseline. Perturbations are generated in memory: source images, labels, manifests, split files, and model weights are not modified. Rotation is a stress test, not an assumption that every leaf image should be orientation-invariant. These tests measure sensitivity to selected corruptions and do not establish real-world or regional generalization. Do not tune model weights or thresholds against this held-out test report.
 
 ## Research integrity and limitations
 
@@ -162,7 +180,7 @@ The v2 manifest in the example is a new manifest version. Before using it, run `
 
 1. Dataset curation, metadata, duplicate screening, and leakage-aware splits
 2. EfficientNet-B0 training and held-out test evaluation
-3. Evidence-backed metadata recovery and source documentation
-4. Independent Karnataka regional data collection and holdout
-5. Regional fine-tuning and controlled baseline comparison
-6. Human-reviewed correction queue and Python package/API release
+3. Acquisition-bias screening and controlled robustness evaluation
+4. Final generic model selection and versioned release
+5. Supervised human feedback, correction review, and approved-data export
+6. Independent regional data collection and region-specific adaptation (deferred)
