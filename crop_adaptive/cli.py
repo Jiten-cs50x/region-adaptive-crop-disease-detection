@@ -90,6 +90,9 @@ def main() -> None:
     acquisition.add_argument("--dataset", required=True)
     acquisition.add_argument("--manifest", required=True)
     acquisition.add_argument("--output", default="reports/acquisition_audit.json")
+    bias = commands.add_parser("bias-audit", help="Measure descriptive association between acquisition features and class labels")
+    bias.add_argument("--features", required=True, help="Per-image CSV produced by acquisition-audit")
+    bias.add_argument("--output", default="reports/acquisition_bias_audit.json")
     review_errors = commands.add_parser("review-errors", help="Create a human-review CSV and image contact sheets for model errors")
     review_errors.add_argument("--dataset", required=True)
     review_errors.add_argument("--misclassified", required=True)
@@ -179,6 +182,11 @@ def main() -> None:
         print(json.dumps(report, indent=2))
         print(f"\nAcquisition audit saved to: {Path(args.output).resolve()}")
         print(f"Per-image features saved to: {Path(args.output).with_suffix('.csv').resolve()}")
+    elif args.command == "bias-audit":
+        from crop_adaptive.data.bias import analyze_acquisition_bias
+        report = analyze_acquisition_bias(args.features, args.output)
+        print(json.dumps(report, indent=2))
+        print(f"\\nAcquisition bias report saved to: {Path(args.output).resolve()}")
     elif args.command == "review-errors":
         from crop_adaptive.data.review import create_misclassification_review
         summary = create_misclassification_review(args.dataset, args.misclassified, args.output,
