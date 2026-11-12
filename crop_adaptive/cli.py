@@ -79,6 +79,15 @@ def main() -> None:
     evaluate.add_argument("--batch-size", type=int, default=16)
     evaluate.add_argument("--num-workers", type=int, default=0)
     evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
+    robustness = commands.add_parser("robustness", help="Evaluate clean and controlled degraded copies of the held-out test split")
+    robustness.add_argument("--config", required=True)
+    robustness.add_argument("--dataset", required=True)
+    robustness.add_argument("--splits", required=True)
+    robustness.add_argument("--checkpoint", required=True)
+    robustness.add_argument("--output", default="runs/robustness")
+    robustness.add_argument("--batch-size", type=int, default=16)
+    robustness.add_argument("--num-workers", type=int, default=0)
+    robustness.add_argument("--device", help="Optional torch device, for example cpu or cuda")
     metadata_audit = commands.add_parser("metadata-audit", help="Audit provenance gaps and create an evidence-led recovery worksheet")
     metadata_audit.add_argument("--manifest", required=True)
     metadata_audit.add_argument("--output", default="reports/metadata_provenance_audit.json")
@@ -165,6 +174,17 @@ def main() -> None:
             pretrained_override=False if args.no_pretrained else None,
         )
         print(json.dumps(summary, indent=2))
+    elif args.command == "robustness":
+        from crop_adaptive.training.robustness import evaluate_robustness_from_config
+        with Path(args.config).open("r", encoding="utf-8") as stream:
+            config = yaml.safe_load(stream) or {}
+        report = evaluate_robustness_from_config(
+            config, args.dataset, args.splits, args.checkpoint, args.output,
+            batch_size=args.batch_size, num_workers=args.num_workers,
+            device_name=args.device,
+        )
+        print(json.dumps(report, indent=2))
+        print(f"\\nRobustness reports saved to: {Path(args.output).resolve()}")
     elif args.command == "metadata-audit":
         from crop_adaptive.data.provenance import audit_metadata_provenance
         report = audit_metadata_provenance(args.manifest, args.output)
