@@ -1,8 +1,8 @@
 # Region-Adaptive Crop Disease Detection
 
-A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, and held-out test evaluation.
+A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, held-out test evaluation, and evidence-gated metadata recovery.
 
-## Current status: v0.12.0
+## Current status: v0.13.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -11,9 +11,9 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - EfficientNet-B0 model factory, configurable transforms, and training pipeline
 - Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
 - Test/train/validation path and provenance-group leakage checks
-- Human misclassification review queue, blank reviewer decision fields, confidence-prioritized summary, and image contact sheets
-- Manifest-driven acquisition-pattern audit with class/source/image-type profiles and metadata completeness reporting
-- Provenance/metadata gap audit with an evidence-led recovery worksheet; no automatic metadata inference
+- Human misclassification review queue and image contact sheets
+- Manifest-driven acquisition-pattern audit
+- Provenance gap audit and evidence-gated recovery into a new manifest version
 - AgML sugarcane configuration aligned to all 11 source folder labels
 
 ## Install (Windows)
@@ -29,13 +29,13 @@ Install compatible PyTorch and torchvision wheels using https://pytorch.org/get-
 
 ## Dataset location and curation
 
-Keep the downloaded Project-AgML images locally under `datasets/sugarcane/raw/project_agml/`; do not commit dataset images to Git.
+Keep downloaded Project-AgML images locally under `datasets/sugarcane/raw/project_agml/`; do not commit dataset images to Git.
 
-The current source dataset contains 6,748 leaf images in 11 source folders. The curation run reported 5,389 retained images after keeping one representative from same-class exact-duplicate groups and excluding cross-class exact-duplicate groups pending review. The source images and original manifest are not modified.
+The source dataset contained 6,748 leaf images in 11 source folders. The curation run retained 5,389 images after keeping one representative from same-class exact-duplicate groups and excluding cross-class exact-duplicate groups pending review. Source images and original manifest are not modified.
 
     crop-adaptive curate --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/dataset_manifest.csv --output datasets/sugarcane/curated
 
-Review `datasets/sugarcane/curated/cross_class_duplicate_review.csv` before reconsidering any excluded conflicting-label samples. Exact byte equality identifies identical files; it does not identify the correct disease label.
+Review `datasets/sugarcane/curated/cross_class_duplicate_review.csv` before reconsidering excluded conflicting-label samples.
 
 ## Create or regenerate splits
 
@@ -43,100 +43,75 @@ The current AgML manifest rows are marked unverified. The following command is a
 
     crop-adaptive split --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/splits --include-unverified --seed 42
 
-Run this after curation and whenever the curated manifest changes. Check `split_report.json` to confirm the split class counts. The split command keeps shared plant, field, capture-session, and supplied duplicate-group IDs together. Missing provenance identifiers mean unknown relationships cannot be ruled out.
+Run this after curation and whenever the curated manifest changes. Check `split_report.json`. Missing plant/field/session identifiers mean unknown relationships cannot be ruled out.
 
 ## AgML 11-class taxonomy
 
-The config `configs/sugarcane_karnataka.yaml` uses the exact folder labels reported by the downloaded dataset:
-
-1. Banded Chlorosis
-2. Brown Spot
-3. BrownRust
-4. Dried
-5. Grassy shoot
-6. Healthy
-7. Pokkah Boeng
-8. Sett Rot
-9. Smut
-10. Viral Disease
-11. Yellow Leaf
-
-The class names are source-provided categories. Confirm their definitions and annotation quality against the dataset documentation and expert review before making disease-diagnosis claims. In particular, do not assume every folder is a clearly defined disease category.
+The source-provided classes are Banded Chlorosis, Brown Spot, BrownRust, Dried, Grassy shoot, Healthy, Pokkah Boeng, Sett Rot, Smut, Viral Disease, and Yellow Leaf. Confirm definitions and annotation quality against dataset documentation and expert review. Do not assume every folder is a clearly defined disease category.
 
 ## GPU training: RTX 3050 6 GB
 
-The configuration uses EfficientNet-B0, 224-pixel input, batch size 8, and `num_workers: 0`. This is a conservative starting point, not a guarantee against out-of-memory errors. If CUDA runs out of memory, retry with batch size 4.
-
-First run a model configuration check:
+The configuration uses EfficientNet-B0, 224-pixel input, batch size 8, and `num_workers: 0`. If CUDA runs out of memory, retry with batch size 4.
 
     crop-adaptive model-info --config configs/sugarcane_karnataka.yaml --no-pretrained
-
-Then run a short GPU smoke test (two epochs, batch size 4, no pretrained download):
-
     crop-adaptive train --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --output runs/sugarcane_smoke_test --epochs 2 --batch-size 4 --device cuda --no-pretrained
 
-If the smoke test completes and produces `best_model.pt`, `last_checkpoint.pt`, `training_history.json`, and `training_summary.json`, start the full run:
-
-    crop-adaptive train --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --output runs/sugarcane_efficientnet_b0 --device cuda
-
-Training reads train.csv and validation.csv only. It does not load test.csv. The best checkpoint is selected by validation loss.
+Training reads train.csv and validation.csv only, not test.csv. The best checkpoint is selected by validation loss.
 
 ## Evaluate the held-out test split
 
-After training, evaluate the best checkpoint exactly once for the current experiment:
-
     crop-adaptive evaluate --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --checkpoint runs/sugarcane_efficientnet_b0/best_model.pt --output runs/sugarcane_efficientnet_b0/evaluation --device cuda
 
-The evaluator checks that test images and available plant/field/capture-session identifiers do not overlap train or validation. It writes:
-- `evaluation_summary.json` and `evaluation_metrics.json`
-- `confusion_matrix.csv`
-- `predictions.csv`
-- `misclassified_images.csv`
+The evaluator writes metrics, confusion matrix, predictions, and misclassified-image reports. Do not tune on this test report and continue describing it as untouched.
 
-The confusion matrix uses true labels as rows and predicted labels as columns. Do not tune the model or thresholds on this test report and then continue to describe it as an untouched test result. If you make changes based on errors, create a new experiment and retain a separate final holdout.
-
-## Review misclassified images
-
-Create a human-review queue and contact sheets from the evaluation CSV (the command does not modify source images, labels, manifests, splits, or metrics):
+## Human review of model errors
 
     crop-adaptive review-errors --dataset datasets/sugarcane/raw --misclassified runs/sugarcane_efficientnet_b0/evaluation/misclassified_images.csv --output runs/sugarcane_efficientnet_b0/error_review
 
-The output contains review_queue.csv, review_summary.json, REVIEW_GUIDE.md, and numbered contact sheets. Fill review_status, corrected_label, reviewer, and review_notes manually. A high-confidence error is a review priority, not proof that the source label is wrong. Do not automatically replace source labels with model predictions. Preserve the original held-out test report; if reviewed samples are used for training or model selection, use a new experiment and a separate final holdout.
+A high-confidence error is a review priority, not proof that the source label is wrong. Never automatically replace labels with model predictions.
 
-## Audit image acquisition patterns (v0.11.0)
-
-Compare image characteristics across the source labels and available manifest metadata:
+## Acquisition and provenance audits
 
     crop-adaptive acquisition-audit --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/reports/acquisition_audit.json
-
-The command writes a JSON summary and a sibling per-image CSV. It reports dimensions, aspect ratio/orientation, coarse resolution and brightness bands, brightness, contrast, approximate edge-variance sharpness, whole-image mean RGB, and metadata completeness. Summaries are grouped by disease label, source dataset, and image type where those metadata fields exist.
-
-This is a descriptive audit, not a background detector or proof of shortcut learning. Whole-image color statistics do not isolate backgrounds. Class-wise capture differences are signals to investigate with expert-reviewed examples and controlled experiments. The command reads labels from the manifest, never infers them from folder names, and does not modify images, labels, splits, checkpoints, or evaluation results.
-
-## Audit provenance and prepare metadata recovery (v0.12.0)
-
-Run a read-only metadata provenance audit against the curated manifest:
-
     crop-adaptive metadata-audit --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/reports/metadata_provenance_audit.json
 
-The command writes a JSON report and a sibling metadata_provenance_audit_recovery_queue.csv. The report summarizes source-dataset/license attribution and completeness of location, collection date, variety, growth-stage, plant, field, and capture-session metadata, including class-wise coverage. The separate worksheet preserves each original manifest row and adds blank proposed_* fields plus evidence/reviewer columns.
+The acquisition audit describes image characteristics; it does not prove shortcut learning. The metadata audit measures recorded metadata coverage and creates a separate recovery worksheet. A dataset name or repository location is not evidence that images were captured in Karnataka or elsewhere.
 
-Do not fill proposed values from visual guesses, folder names, model predictions, or the fact that this project targets Karnataka. Enter a value only when supported by traceable dataset documentation or qualified review, and record the evidence. Keep the original manifest unchanged; after approval, create a new versioned manifest and rerun validation/curation/splitting as a new experiment. This command does not modify images, labels, existing splits, checkpoints, or held-out evaluation reports.
+## Evidence-gated metadata recovery (v0.13.0)
+
+1. Generate a fresh worksheet from the exact source manifest you intend to update:
+
+       crop-adaptive metadata-audit --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/reports/metadata_provenance_audit.json
+
+2. Open `datasets/sugarcane/reports/metadata_provenance_audit_recovery_queue.csv`. Enter proposed values only when supported by traceable dataset documentation or qualified review. For each row with proposed values, set:
+   - `review_status` to `approved`
+   - `evidence_type` and `evidence_reference` (a traceable document, dataset card, publication, or other source)
+   - `reviewer`, `review_date` (YYYY-MM-DD), and `review_notes`
+
+   Rows without proposals may remain blank. Values marked `rejected` or `needs_more_evidence` are not applied; if a row contains proposals but is not approved, the command stops rather than silently ignoring them.
+
+3. Create a new manifest file; choose a new output path that does not already exist:
+
+       crop-adaptive metadata-recover --manifest datasets/sugarcane/curated/curated_manifest.csv --recovery-queue datasets/sugarcane/reports/metadata_provenance_audit_recovery_queue.csv --output datasets/sugarcane/curated/curated_manifest_v2.csv
+
+The recovery command checks row number plus image path and disease label to detect stale worksheets, requires complete evidence and explicit approval, validates ISO dates, refuses to overwrite existing metadata, and never overwrites an existing output file. The source manifest and recovery worksheet remain unchanged.
+
+After recovery, run `validate-manifest`, then create a new curation/split/training experiment as appropriate. Do not retroactively replace metadata in old splits or checkpoints. Missing geographic metadata must remain unknown: do not infer Karnataka from the project's target region, image appearance, folder names, or model output.
 
 ## Research integrity and limitations
 
-- All current AgML manifest labels remain `unverified`; using `--include-unverified` is an explicit exploratory-training decision, not verification.
-- Do not invent missing provenance, region, district, variety, growth stage, plant, field, or capture-session metadata.
-- Keep a separate regional Karnataka holdout independent; do not use it for training, tuning, or early stopping.
+- Current Project-AgML labels are source-provided and remain unverified unless independently reviewed.
+- The current 5,389-image curated dataset has no recorded country/state/district, collection date, variety, growth stage, plant ID, field ID, or capture-session ID in the supplied manifest. It is not a Karnataka regional dataset.
+- Keep an independent Karnataka regional holdout separate from training, tuning, and early stopping.
 - A leaf-only classifier cannot be assumed to diagnose conditions requiring stalk, root, or whole-plant evidence.
 - Check third-party dataset licenses before redistribution.
 - Keep downloaded images, generated runs, checkpoints, and local reports out of Git unless intentionally publishing a permitted artifact.
 
 ## Roadmap
 
-1. Dataset curation, metadata, exact/perceptual duplicate screening, and leakage-aware splits
-2. EfficientNet-B0 training
-3. Held-out test evaluation and error review
-4. Independent Karnataka regional holdout and regional fine-tuning
-5. Human-reviewed correction queue and controlled retraining
-6. Python API and package release
+1. Dataset curation, metadata, duplicate screening, and leakage-aware splits
+2. EfficientNet-B0 training and held-out test evaluation
+3. Evidence-backed metadata recovery and source documentation
+4. Independent Karnataka regional data collection and holdout
+5. Regional fine-tuning and controlled baseline comparison
+6. Human-reviewed correction queue and Python package/API release

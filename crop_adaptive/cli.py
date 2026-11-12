@@ -80,15 +80,19 @@ def main() -> None:
     evaluate.add_argument("--num-workers", type=int, default=0)
     evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
     metadata_audit = commands.add_parser("metadata-audit", help="Audit provenance gaps and create an evidence-led recovery worksheet")
-    metadata_audit.add_argument("--manifest", required=True, help="Curated or source CSV manifest")
+    metadata_audit.add_argument("--manifest", required=True)
     metadata_audit.add_argument("--output", default="reports/metadata_provenance_audit.json")
+    metadata_recover = commands.add_parser("metadata-recover", help="Create a new manifest from explicitly approved, evidence-backed metadata proposals")
+    metadata_recover.add_argument("--manifest", required=True, help="Unmodified source manifest used to create the recovery worksheet")
+    metadata_recover.add_argument("--recovery-queue", required=True, help="Completed recovery worksheet CSV")
+    metadata_recover.add_argument("--output", required=True, help="New manifest path; existing files are never overwritten")
     acquisition = commands.add_parser("acquisition-audit", help="Compare image acquisition characteristics across manifest labels")
-    acquisition.add_argument("--dataset", required=True, help="Dataset root containing manifest image paths")
-    acquisition.add_argument("--manifest", required=True, help="Manifest containing image_path and disease_label")
+    acquisition.add_argument("--dataset", required=True)
+    acquisition.add_argument("--manifest", required=True)
     acquisition.add_argument("--output", default="reports/acquisition_audit.json")
     review_errors = commands.add_parser("review-errors", help="Create a human-review CSV and image contact sheets for model errors")
-    review_errors.add_argument("--dataset", required=True, help="Dataset root containing image paths from the error CSV")
-    review_errors.add_argument("--misclassified", required=True, help="Path to evaluation misclassified_images.csv")
+    review_errors.add_argument("--dataset", required=True)
+    review_errors.add_argument("--misclassified", required=True)
     review_errors.add_argument("--output", default="runs/error_review")
     review_errors.add_argument("--per-sheet", type=int, default=12)
     review_errors.add_argument("--columns", type=int, default=3)
@@ -165,11 +169,15 @@ def main() -> None:
         print(f"\nMetadata provenance audit saved to: {Path(args.output).resolve()}")
         queue = Path(args.output).with_name(Path(args.output).stem + "_recovery_queue.csv")
         print(f"Recovery worksheet saved to: {queue.resolve()}")
+    elif args.command == "metadata-recover":
+        from crop_adaptive.data.provenance import apply_approved_metadata_recovery
+        report = apply_approved_metadata_recovery(args.manifest, args.recovery_queue, args.output)
+        print(json.dumps(report, indent=2))
     elif args.command == "acquisition-audit":
         from crop_adaptive.data.acquisition import audit_acquisition_patterns
         report = audit_acquisition_patterns(args.dataset, args.manifest, args.output)
         print(json.dumps(report, indent=2))
-        print(f"\\nAcquisition audit saved to: {Path(args.output).resolve()}")
+        print(f"\nAcquisition audit saved to: {Path(args.output).resolve()}")
         print(f"Per-image features saved to: {Path(args.output).with_suffix('.csv').resolve()}")
     elif args.command == "review-errors":
         from crop_adaptive.data.review import create_misclassification_review
