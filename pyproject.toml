@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "region-adaptive-crop-disease"
-version = "0.15.0"
-description = "Configurable crop disease data curation, EfficientNet-B0 training, and regional adaptation."
+version = "0.16.0"
+description = "Configurable crop disease data curation, EfficientNet-B0 training, and supervised human feedback."
 readme = "README.md"
 requires-python = ">=3.9"
 license = {file = "LICENSE"}
@@ -14,6 +14,7 @@ dependencies = ["Pillow>=10.0", "PyYAML>=6.0"]
 [project.optional-dependencies]
 train = ["torch>=2.2", "torchvision>=0.17"]
 dev = ["pytest>=7.0"]
+feedback = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "python-multipart>=0.0.9", "torch>=2.2", "torchvision>=0.17"]
 
 [project.scripts]
 crop-adaptive = "crop_adaptive.cli:main"
