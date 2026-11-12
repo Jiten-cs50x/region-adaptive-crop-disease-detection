@@ -1,10 +1,10 @@
 # Region-Adaptive Crop Disease Detection
 
-**Package version: v0.15.0**
+**Package version: v0.16.0**
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, held-out test evaluation, and evidence-gated metadata recovery.
 
-## Current status: v0.15.0
+## Current status: v0.16.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -146,3 +146,51 @@ Outputs include robustness_report.json, robustness_metrics.csv, and robustness_p
 4. Final generic model selection and versioned release
 5. Supervised human feedback, correction review, and approved-data export
 6. Independent regional data collection and region-specific adaptation (deferred)
+
+
+## Supervised human feedback (v0.16.0)
+
+A separate FastAPI service provides farmer image submissions, EfficientNet-B0 predictions, farmer-proposed corrections, expert approval/rejection, an audit trail, and CSV export of expert-approved labels. The farmer and expert dashboard workflow has been run successfully locally on Windows. The API test suite also passed locally (`4 passed`). These checks validate the feedback API and local workflow; they are not a production security audit or a claim of deployment readiness.
+
+The service does not change the baseline checkpoint or automatically retrain/deploy a model. Expert-approved CSV records are review data only; they must go through duplicate/leakage checks, a separate candidate training run, and evaluation against the unchanged baseline and held-out test set before any model promotion.
+
+### Install and run on Windows PowerShell
+
+Activate the project virtual environment, then install the feedback and test dependencies:
+
+```powershell
+python -m venv .venv
+.venv\\Scripts\\Activate.ps1
+pip install -e ".[dev]"
+pip install "uvicorn[standard]"
+```
+
+Configure the service and start it (replace the demo tokens with long random values outside local testing):
+
+```powershell
+$env:FARMER_API_TOKEN="replace-with-a-long-random-farmer-token"
+$env:EXPERT_API_TOKEN="replace-with-a-different-long-random-expert-token"
+$env:CROP_MODEL_CHECKPOINT="runs/sugarcane_efficientnet_b0/best_model.pt"
+$env:CROP_CONFIG="configs/sugarcane_karnataka.yaml"
+python -m uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000. Use the farmer token and a farmer ID for submissions; use the separate expert token and a different expert ID for verification. The dashboard supports prediction, correction submission, expert review, status checking, and approved-feedback CSV export.
+
+Run the API tests in another terminal:
+
+```powershell
+pytest -q tests/test_feedback_api.py
+```
+
+Expected result for the current test suite: `4 passed`.
+
+See [the feedback service guide](docs/HUMAN_FEEDBACK.md) for endpoints, authentication headers, data flow, and retraining safeguards. The included bearer-token role gate and local SQLite/image storage are a single-host demonstration setup, not production identity/security infrastructure. The supplied example tokens are public demo values: never use them on an internet-accessible deployment. Use real per-user authentication, HTTPS, rate limiting, secure secret storage, and managed storage before public deployment.
+
+### AI-assisted disease explanations and management guidance (planned)
+
+An optional LLM assistant is a proposed next feature, not currently implemented. It should explain the classifier's predicted class and confidence in farmer-friendly language and present disease-management guidance from a reviewed, crop- and region-specific knowledge base. The classifier remains the source of the image prediction; the LLM must not independently diagnose the image or silently change the model label.
+
+Treatment advice must be grounded in expert-reviewed agricultural-extension or other authoritative sources. For pesticides, the system must defer to current local registrations and product labels for crop, target disease, dosage, application method, pre-harvest interval, and protective equipment; it must not invent chemical names or dosages. It should state uncertainty, ask for missing context when necessary, and recommend local agricultural experts when the prediction is uncertain or symptoms do not match. Provider credentials (Gemini or OpenAI) must be stored server-side in environment variables and never exposed in browser JavaScript.
+
+The implementation should be provider-configurable (Gemini or OpenAI), optional when no API key is configured, and return structured responses with source references and safety disclaimers. A deterministic, reviewed knowledge base should supply the treatment facts; the LLM should primarily simplify and explain them.
