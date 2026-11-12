@@ -12,6 +12,7 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - Group-aware train/validation/test splits
 - EfficientNet-B0 model factory, configurable transforms, and training pipeline
 - Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
+- Controlled robustness evaluation for brightness, contrast, blur, resolution, JPEG compression, and rotation, with per-class metrics and confusion matrices
 - Test/train/validation path and provenance-group leakage checks
 - Human misclassification review queue and image contact sheets
 - Manifest-driven acquisition-pattern audit
