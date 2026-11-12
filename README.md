@@ -146,3 +146,21 @@ Outputs include robustness_report.json, robustness_metrics.csv, and robustness_p
 4. Final generic model selection and versioned release
 5. Supervised human feedback, correction review, and approved-data export
 6. Independent regional data collection and region-specific adaptation (deferred)
+
+
+## Supervised human feedback (v0.16.0)
+
+A separate FastAPI service now provides farmer image submissions, model predictions, farmer-proposed corrections, expert approval/rejection, an audit trail, and CSV export of expert-approved labels. It does not change the baseline checkpoint or automatically retrain/deploy a model.
+
+Install and run on Windows PowerShell:
+
+```powershell
+pip install -e ".[feedback]"
+$env:FARMER_API_TOKEN="replace-with-a-long-random-token"
+$env:EXPERT_API_TOKEN="use-a-different-long-random-token"
+$env:CROP_MODEL_CHECKPOINT="runs/sugarcane_efficientnet_b0/best_model.pt"
+$env:CROP_CONFIG="configs/sugarcane_karnataka.yaml"
+uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
+```
+
+Open http://127.0.0.1:8000. See [the feedback service guide](docs/HUMAN_FEEDBACK.md) for endpoints, authentication headers, data flow, and retraining safeguards. The included token auth and local SQLite/image storage are a single-host demonstration setup, not production identity/security infrastructure. Keep the service behind HTTPS and proper authentication before real deployment.
