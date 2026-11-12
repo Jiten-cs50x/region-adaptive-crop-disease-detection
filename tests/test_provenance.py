@@ -23,14 +23,24 @@ def _write(path, rows, fields=FIELDS):
         writer.writerows(rows)
 
 
+RECOVERY_FIELDS = [
+    "source_url", "country", "region", "state", "district", "collection_date",
+    "variety", "growth_stage", "plant_id", "field_id", "capture_session_id",
+]
+EVIDENCE_FIELDS = ["evidence_type", "evidence_reference", "reviewer", "review_date", "review_notes"]
+
+
 def _approved_proposal():
-    return {
+    row = {
         "manifest_row_number": "2", "image_path": "a.jpg", "disease_label": "Healthy",
-        "proposed_country": "India", "proposed_state": "Karnataka",
         "review_status": "approved", "evidence_type": "dataset_documentation",
         "evidence_reference": "https://example.org/dataset-card", "reviewer": "Reviewer A",
         "review_date": "2026-11-12", "review_notes": "Explicitly stated in source documentation",
     }
+    row.update({f"proposed_{field}": "" for field in RECOVERY_FIELDS})
+    row["proposed_country"] = "India"
+    row["proposed_state"] = "Karnataka"
+    return row
 
 
 def test_metadata_audit_writes_blank_evidence_gated_queue_without_changing_manifest(tmp_path):
