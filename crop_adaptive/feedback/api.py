@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Header, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse, Response
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 ROOT=Path(os.getenv("CROP_FEEDBACK_HOME","runs/feedback")).resolve()
@@ -44,15 +44,26 @@ def classes():
 def predictor():
  p=Path(os.getenv("CROP_MODEL_CHECKPOINT",""))
  if not p.is_file(): raise HTTPException(503,"Set CROP_MODEL_CHECKPOINT to enable inference")
+ config_path=Path(os.getenv("CROP_CONFIG","configs/sugarcane_karnataka.yaml"))
+ if not config_path.is_file(): raise HTTPException(503,f"CROP_CONFIG not found: {config_path}")
  try:
   import torch
-  from torchvision import transforms
-  from crop_adaptive.models.efficientnet import build_model
-  ckpt=torch.load(p,map_location="cpu",weights_only=False); labels=ckpt.get("classes") or list(ckpt["class_to_idx"])
-  model=build_model(len(labels),pretrained=False); model.load_state_dict(ckpt.get("model_state_dict",ckpt)); model.eval()
-  tf=transforms.Compose([transforms.Resize(256),transforms.CenterCrop(224),transforms.ToTensor(),transforms.Normalize([.485,.456,.406],[.229,.224,.225])])
+  import yaml
+  from crop_adaptive.data.transforms import build_transforms
+  from crop_adaptive.models.efficientnet import build_model_from_config
+  config=yaml.safe_load(config_path.read_text(encoding="utf-8"))
+  labels=config.get("taxonomy",{}).get("classes",[])
+  if not isinstance(labels,list) or len(labels)<2: raise ValueError("Config must define taxonomy.classes")
+  try: ckpt=torch.load(p,map_location="cpu",weights_only=False)
+  except TypeError: ckpt=torch.load(p,map_location="cpu")
+  mapping={name:index for index,name in enumerate(labels)}
+  if ckpt.get("classes")!=labels or ckpt.get("class_to_idx")!=mapping:
+   raise ValueError("Checkpoint class order/mapping does not match CROP_CONFIG taxonomy.classes")
+  model=build_model_from_config(config,pretrained_override=False)
+  model.load_state_dict(ckpt["model_state_dict"]); model.eval()
+  tf=build_transforms(config,"predict")
   return model,labels,tf,hashlib.sha256(p.read_bytes()).hexdigest()[:12],torch
- except Exception as e: raise HTTPException(500,f"Checkpoint load failed: {e}")
+ except Exception as e: raise HTTPException(500,f"Checkpoint load failed: {e}") from e
 class Correction(BaseModel):
  suggested_label:str=Field(min_length=1,max_length=100); notes:str=Field(default="",max_length=2000)
 class Review(BaseModel):
@@ -68,7 +79,7 @@ async def predict(image:UploadFile=File(...),farmer_id:str=Header(alias="X-User-
  if len(raw)>10*1024*1024: raise HTTPException(413,"Image exceeds 10 MB")
  try:
   with Image.open(io.BytesIO(raw)) as im: im.verify()
-  with Image.open(io.BytesIO(raw)) as im: rgb=im.convert("RGB")
+  with Image.open(io.BytesIO(raw)) as im: rgb=ImageOps.exif_transpose(im).convert("RGB")
  except (UnidentifiedImageError,OSError): raise HTTPException(400,"Invalid image")
  model,labels,tf,version,torch=predictor()
  with torch.inference_mode():
