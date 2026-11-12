@@ -2,7 +2,7 @@
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, and held-out test evaluation.
 
-## Current status: v0.10.0
+## Current status: v0.11.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -12,6 +12,7 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - Test evaluation with accuracy, macro/weighted precision/recall/F1, per-class metrics, confusion matrix, predictions, and misclassification CSV
 - Test/train/validation path and provenance-group leakage checks
 - Human misclassification review queue, blank reviewer decision fields, confidence-prioritized summary, and image contact sheets
+- Manifest-driven acquisition-pattern audit with class/source/image-type profiles and metadata completeness reporting
 - AgML sugarcane configuration aligned to all 11 source folder labels
 
 ## Install (Windows)
