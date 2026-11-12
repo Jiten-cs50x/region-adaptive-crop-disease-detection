@@ -1,5 +1,7 @@
 # Region-Adaptive Crop Disease Detection
 
+**Package version: v0.14.0**
+
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, held-out test evaluation, and evidence-gated metadata recovery.
 
 ## Current status: v0.13.0
@@ -97,6 +99,17 @@ The acquisition audit describes image characteristics; it does not prove shortcu
 The recovery command checks row number plus image path and disease label to detect stale worksheets, requires complete evidence and explicit approval, validates ISO dates, refuses to overwrite existing metadata, and never overwrites an existing output file. The source manifest and recovery worksheet remain unchanged.
 
 After recovery, run `validate-manifest`, then create a new curation/split/training experiment as appropriate. Do not retroactively replace metadata in old splits or checkpoints. Missing geographic metadata must remain unknown: do not infer Karnataka from the project's target region, image appearance, folder names, or model output.
+
+## Acquisition bias screening (v0.14.0)
+
+Run the acquisition audit first to create per-image features, then calculate descriptive associations between disease labels and capture-related features:
+
+    crop-adaptive acquisition-audit --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest_v2.csv --output datasets/sugarcane/reports/acquisition_audit_v2.json
+    crop-adaptive bias-audit --features datasets/sugarcane/reports/acquisition_audit_v2.csv --output datasets/sugarcane/reports/acquisition_bias_audit.json
+
+The bias report includes eta-squared for numeric features and bias-corrected Cramer's V for categorical features, with class-wise distributions. These are descriptive association measures, not causal tests and not proof of shortcut learning. Whole-image mean RGB is not a background measurement; background-specific analysis requires a separately validated foreground/background method. Do not use the held-out test set to choose thresholds or model changes.
+
+The v2 manifest in the example is a new manifest version. Before using it, run `validate-manifest` and regenerate a new split directory as a separate experiment. The existing split files, checkpoint, and held-out evaluation remain untouched.
 
 ## Research integrity and limitations
 
