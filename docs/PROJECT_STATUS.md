@@ -72,3 +72,20 @@
 ## Testing status
 - Curation, duplicate-aware split, model factory, transforms, and training dataset tests are present.
 - The user reports all tests executed locally after installing CUDA-enabled PyTorch; exact pass/skip/failure counts should be retained from their final pytest summary.
+
+
+## Implemented in v0.11.0
+- Non-destructive acquisition-pattern audit using manifest-provided labels.
+- Per-image dimensions, aspect ratio, orientation, coarse resolution/brightness bands, brightness, contrast, approximate sharpness, and whole-image mean RGB features.
+- Class-wise, source-dataset-wise, and image-type-wise descriptive profiles plus metadata completeness counts.
+- Missing/unreadable image reporting and path traversal/duplicate manifest-path protection.
+- No automatic label changes, image exclusion, test-set tuning, or source-file modification.
+
+## Next
+- Run acquisition-audit locally on the curated AgML manifest and inspect class-wise capture profiles.
+- Manually compare representative examples from classes with strongly different capture profiles.
+- Review source labels with an agricultural expert before making any label corrections.
+- Plan controlled capture-condition experiments and an independent Karnataka regional holdout.
+
+## Testing note
+- v0.11.0 tests were added for profile reporting, source-image immutability, path traversal, and duplicate manifest paths. They have not been executed in the GitHub environment; run the local pytest suite after pulling the commit.

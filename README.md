@@ -101,6 +101,16 @@ Create a human-review queue and contact sheets from the evaluation CSV (the comm
 
 The output contains review_queue.csv, review_summary.json, REVIEW_GUIDE.md, and numbered contact sheets. Fill review_status, corrected_label, reviewer, and review_notes manually. A high-confidence error is a review priority, not proof that the source label is wrong. Do not automatically replace source labels with model predictions. Preserve the original held-out test report; if reviewed samples are used for training or model selection, use a new experiment and a separate final holdout.
 
+## Audit image acquisition patterns (v0.11.0)
+
+Compare image characteristics across the source labels and available manifest metadata:
+
+    crop-adaptive acquisition-audit --dataset datasets/sugarcane/raw --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/reports/acquisition_audit.json
+
+The command writes a JSON summary and a sibling per-image CSV. It reports dimensions, aspect ratio/orientation, coarse resolution and brightness bands, brightness, contrast, approximate edge-variance sharpness, whole-image mean RGB, and metadata completeness. Summaries are grouped by disease label, source dataset, and image type where those metadata fields exist.
+
+This is a descriptive audit, not a background detector or proof of shortcut learning. Whole-image color statistics do not isolate backgrounds. Class-wise capture differences are signals to investigate with expert-reviewed examples and controlled experiments. The command reads labels from the manifest, never infers them from folder names, and does not modify images, labels, splits, checkpoints, or evaluation results.
+
 ## Research integrity and limitations
 
 - All current AgML manifest labels remain `unverified`; using `--include-unverified` is an explicit exploratory-training decision, not verification.

@@ -79,6 +79,10 @@ def main() -> None:
     evaluate.add_argument("--batch-size", type=int, default=16)
     evaluate.add_argument("--num-workers", type=int, default=0)
     evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
+    acquisition = commands.add_parser("acquisition-audit", help="Compare image acquisition characteristics across manifest labels")
+    acquisition.add_argument("--dataset", required=True, help="Dataset root containing manifest image paths")
+    acquisition.add_argument("--manifest", required=True, help="Manifest containing image_path and disease_label")
+    acquisition.add_argument("--output", default="reports/acquisition_audit.json")
     review_errors = commands.add_parser("review-errors", help="Create a human-review CSV and image contact sheets for model errors")
     review_errors.add_argument("--dataset", required=True, help="Dataset root containing image paths from the error CSV")
     review_errors.add_argument("--misclassified", required=True, help="Path to evaluation misclassified_images.csv")
@@ -151,6 +155,12 @@ def main() -> None:
             pretrained_override=False if args.no_pretrained else None,
         )
         print(json.dumps(summary, indent=2))
+    elif args.command == "acquisition-audit":
+        from crop_adaptive.data.acquisition import audit_acquisition_patterns
+        report = audit_acquisition_patterns(args.dataset, args.manifest, args.output)
+        print(json.dumps(report, indent=2))
+        print(f"\\nAcquisition audit saved to: {Path(args.output).resolve()}")
+        print(f"Per-image features saved to: {Path(args.output).with_suffix('.csv').resolve()}")
     elif args.command == "review-errors":
         from crop_adaptive.data.review import create_misclassification_review
         summary = create_misclassification_review(args.dataset, args.misclassified, args.output,
