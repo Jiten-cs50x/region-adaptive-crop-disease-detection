@@ -21,3 +21,6 @@ crop-adaptive = "crop_adaptive.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["crop_adaptive*"]
+
+[tool.setuptools.package-data]
+"crop_adaptive.feedback" = ["*.html"]
