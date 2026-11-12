@@ -89,3 +89,16 @@
 
 ## Testing note
 - v0.11.0 tests were added for profile reporting, source-image immutability, path traversal, and duplicate manifest paths. They have not been executed in the GitHub environment; run the local pytest suite after pulling the commit.
+
+## Implemented in v0.12.0
+- Read-only provenance and metadata completeness audit for source dataset, source URL, license, country, region, state, district, collection date, variety, growth stage, plant, field, and capture-session identifiers.
+- Class-wise metadata coverage and source/license attribution summaries.
+- Separate evidence-led recovery worksheet preserving original manifest values, with blank proposed metadata and reviewer/evidence fields.
+- Duplicate manifest path reporting.
+- No automatic metadata inference, source-manifest edits, relabeling, image changes, split changes, checkpoint changes, or held-out evaluation changes.
+
+## Next
+- Run metadata-audit locally and review the recovery worksheet against original Project-AgML documentation and traceable source records.
+- Recover only documented values; leave unsupported fields blank.
+- If approved metadata is added, save a new manifest version and regenerate duplicate-aware group splits as a new experiment.
+- Obtain expert-reviewed Karnataka field images with variety, growth stage, date, and field/session provenance for independent regional evaluation.

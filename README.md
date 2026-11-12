@@ -2,7 +2,7 @@
 
 A reusable, configuration-driven pipeline for crop disease image classification, regional adaptation, and human-reviewed feedback. Current components cover dataset auditing, metadata integrity, exact/perceptual duplicate screening, image-quality analysis, conservative dataset curation, leakage-aware splitting, EfficientNet-B0 setup, training, and held-out test evaluation.
 
-## Current status: v0.11.0
+## Current status: v0.12.0
 - Dataset inventory and metadata manifest validation
 - SHA-256 exact duplicate grouping and conservative curation
 - Cross-class exact-duplicate review queue; conflicting groups excluded pending human review
@@ -13,6 +13,7 @@ A reusable, configuration-driven pipeline for crop disease image classification,
 - Test/train/validation path and provenance-group leakage checks
 - Human misclassification review queue, blank reviewer decision fields, confidence-prioritized summary, and image contact sheets
 - Manifest-driven acquisition-pattern audit with class/source/image-type profiles and metadata completeness reporting
+- Provenance/metadata gap audit with an evidence-led recovery worksheet; no automatic metadata inference
 - AgML sugarcane configuration aligned to all 11 source folder labels
 
 ## Install (Windows)
@@ -111,6 +112,16 @@ Compare image characteristics across the source labels and available manifest me
 The command writes a JSON summary and a sibling per-image CSV. It reports dimensions, aspect ratio/orientation, coarse resolution and brightness bands, brightness, contrast, approximate edge-variance sharpness, whole-image mean RGB, and metadata completeness. Summaries are grouped by disease label, source dataset, and image type where those metadata fields exist.
 
 This is a descriptive audit, not a background detector or proof of shortcut learning. Whole-image color statistics do not isolate backgrounds. Class-wise capture differences are signals to investigate with expert-reviewed examples and controlled experiments. The command reads labels from the manifest, never infers them from folder names, and does not modify images, labels, splits, checkpoints, or evaluation results.
+
+## Audit provenance and prepare metadata recovery (v0.12.0)
+
+Run a read-only metadata provenance audit against the curated manifest:
+
+    crop-adaptive metadata-audit --manifest datasets/sugarcane/curated/curated_manifest.csv --output datasets/sugarcane/reports/metadata_provenance_audit.json
+
+The command writes a JSON report and a sibling metadata_provenance_audit_recovery_queue.csv. The report summarizes source-dataset/license attribution and completeness of location, collection date, variety, growth-stage, plant, field, and capture-session metadata, including class-wise coverage. The separate worksheet preserves each original manifest row and adds blank proposed_* fields plus evidence/reviewer columns.
+
+Do not fill proposed values from visual guesses, folder names, model predictions, or the fact that this project targets Karnataka. Enter a value only when supported by traceable dataset documentation or qualified review, and record the evidence. Keep the original manifest unchanged; after approval, create a new versioned manifest and rerun validation/curation/splitting as a new experiment. This command does not modify images, labels, existing splits, checkpoints, or held-out evaluation reports.
 
 ## Research integrity and limitations
 

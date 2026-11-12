@@ -79,6 +79,9 @@ def main() -> None:
     evaluate.add_argument("--batch-size", type=int, default=16)
     evaluate.add_argument("--num-workers", type=int, default=0)
     evaluate.add_argument("--device", help="Optional torch device, for example cpu or cuda")
+    metadata_audit = commands.add_parser("metadata-audit", help="Audit provenance gaps and create an evidence-led recovery worksheet")
+    metadata_audit.add_argument("--manifest", required=True, help="Curated or source CSV manifest")
+    metadata_audit.add_argument("--output", default="reports/metadata_provenance_audit.json")
     acquisition = commands.add_parser("acquisition-audit", help="Compare image acquisition characteristics across manifest labels")
     acquisition.add_argument("--dataset", required=True, help="Dataset root containing manifest image paths")
     acquisition.add_argument("--manifest", required=True, help="Manifest containing image_path and disease_label")
@@ -155,6 +158,13 @@ def main() -> None:
             pretrained_override=False if args.no_pretrained else None,
         )
         print(json.dumps(summary, indent=2))
+    elif args.command == "metadata-audit":
+        from crop_adaptive.data.provenance import audit_metadata_provenance
+        report = audit_metadata_provenance(args.manifest, args.output)
+        print(json.dumps(report, indent=2))
+        print(f"\nMetadata provenance audit saved to: {Path(args.output).resolve()}")
+        queue = Path(args.output).with_name(Path(args.output).stem + "_recovery_queue.csv")
+        print(f"Recovery worksheet saved to: {queue.resolve()}")
     elif args.command == "acquisition-audit":
         from crop_adaptive.data.acquisition import audit_acquisition_patterns
         report = audit_acquisition_patterns(args.dataset, args.manifest, args.output)
