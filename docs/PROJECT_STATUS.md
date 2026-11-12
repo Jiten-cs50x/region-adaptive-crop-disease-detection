@@ -102,3 +102,18 @@
 - Recover only documented values; leave unsupported fields blank.
 - If approved metadata is added, save a new manifest version and regenerate duplicate-aware group splits as a new experiment.
 - Obtain expert-reviewed Karnataka field images with variety, growth stage, date, and field/session provenance for independent regional evaluation.
+
+
+## Implemented in v0.14.0
+- Descriptive acquisition-feature/class association analysis from the per-image acquisition audit CSV.
+- Numeric-feature eta-squared effect sizes and categorical-feature bias-corrected Cramer's V.
+- Class-wise feature distributions and explicit interpretation limits.
+- No p-values or causal claims; no images, labels, manifests, splits, checkpoints, or evaluation metrics are modified.
+- Added CLI command: `bias-audit`.
+- Added unit tests for effect-size reporting, malformed inputs, and source CSV immutability.
+
+## Next
+- Run acquisition-audit on the new manifest version and then bias-audit.
+- Inspect high-association features alongside contact sheets; association alone is not evidence of shortcut learning.
+- Implement a separately validated background/foreground analysis before making background-specific claims.
+- Design controlled robustness experiments on validation/diagnostic data, preserving the held-out test set.
