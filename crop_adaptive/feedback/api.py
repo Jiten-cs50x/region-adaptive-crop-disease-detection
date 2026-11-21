@@ -1,5 +1,5 @@
 from __future__ import annotations
-import csv, hashlib, io, os, secrets, sqlite3, uuid
+import csv, hashlib, io, json, os, secrets, sqlite3, uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,14 +27,24 @@ with db() as c:
  CREATE TABLE IF NOT EXISTS expert_reviews(id TEXT PRIMARY KEY,feedback_id TEXT NOT NULL REFERENCES feedback(id),expert_id TEXT NOT NULL,decision TEXT NOT NULL,verified_label TEXT,notes TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS audit_log(id INTEGER PRIMARY KEY AUTOINCREMENT,actor_id TEXT NOT NULL,action TEXT NOT NULL,object_id TEXT NOT NULL,details TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback(status);
+ CREATE UNIQUE INDEX IF NOT EXISTS expert_reviews_feedback_unique ON expert_reviews(feedback_id);
  """)
 def auth(role):
- async def check(authorization:Optional[str]=Header(default=None)):
-  token=os.getenv(role.upper()+"_API_TOKEN")
-  if not token: raise HTTPException(503,f"Configure {role.upper()}_API_TOKEN")
+ async def check(authorization:Optional[str]=Header(default=None),user_id:Optional[str]=Header(default=None,alias="X-User-ID")):
+  raw=os.getenv(role.upper()+"_API_TOKENS")
+  if not raw: raise HTTPException(503,f"Configure {role.upper()}_API_TOKENS as a JSON object mapping user IDs to individual tokens")
+  try:
+   identities=json.loads(raw)
+   if not isinstance(identities,dict) or not identities: raise ValueError()
+  except (json.JSONDecodeError,ValueError):
+   raise HTTPException(503,f"{role.upper()}_API_TOKENS must be a JSON object mapping user IDs to tokens")
   supplied=authorization.removeprefix("Bearer ").strip() if authorization else ""
-  if not secrets.compare_digest(supplied,token): raise HTTPException(401,"Invalid bearer token")
-  return role
+  authenticated_id=None
+  for identity,token in identities.items():
+   if isinstance(identity,str) and isinstance(token,str) and secrets.compare_digest(supplied,token): authenticated_id=identity
+  if authenticated_id is None: raise HTTPException(401,"Invalid bearer token")
+  if user_id and not secrets.compare_digest(user_id,authenticated_id): raise HTTPException(403,"X-User-ID does not match the identity assigned to this token")
+  return authenticated_id
  return check
 def classes():
  import yaml
@@ -70,10 +80,12 @@ class Review(BaseModel):
  decision:str=Field(pattern="^(approve|reject)$"); verified_label:Optional[str]=None; notes:str=Field(default="",max_length=2000)
 @app.get("/health")
 def health(): return {"status":"ok","database":str(DB_PATH)}
+@app.get("/api/taxonomy")
+def taxonomy(): return {"classes":classes()}
 @app.get("/",response_class=HTMLResponse)
 def home(): return HTMLResponse((Path(__file__).with_name("dashboard.html")).read_text(encoding="utf-8"))
 @app.post("/api/predictions")
-async def predict(image:UploadFile=File(...),farmer_id:str=Header(alias="X-User-ID"),_=Depends(auth("farmer"))):
+async def predict(image:UploadFile=File(...),farmer_id:str=Depends(auth("farmer"))):
  if image.content_type not in {"image/jpeg","image/png","image/webp"}: raise HTTPException(415,"Upload JPEG, PNG or WebP")
  raw=await image.read(10*1024*1024+1)
  if len(raw)>10*1024*1024: raise HTTPException(413,"Image exceeds 10 MB")
@@ -94,7 +106,7 @@ async def predict(image:UploadFile=File(...),farmer_id:str=Header(alias="X-User-
   path.unlink(missing_ok=True); raise HTTPException(409,"This image has already been submitted")
  return {"id":pid,"predicted_label":label,"confidence":float(conf),"model_version":version}
 @app.post("/api/predictions/{pid}/feedback")
-def correct(pid:str,payload:Correction,farmer_id:str=Header(alias="X-User-ID"),_=Depends(auth("farmer"))):
+def correct(pid:str,payload:Correction,farmer_id:str=Depends(auth("farmer"))):
  if payload.suggested_label not in classes(): raise HTTPException(422,"Label not in configured taxonomy")
  with db() as c:
   p=c.execute("SELECT * FROM predictions WHERE id=?",(pid,)).fetchone()
@@ -107,21 +119,27 @@ def correct(pid:str,payload:Correction,farmer_id:str=Header(alias="X-User-ID"),_
   c.execute("INSERT INTO audit_log(actor_id,action,object_id,details,created_at) VALUES(?,?,?,?,?)",(farmer_id,"feedback_submitted",fid,payload.suggested_label,now()))
  return {"feedback_id":fid,"status":"pending_expert_verification"}
 @app.get("/api/my-submissions")
-def mine(farmer_id:str=Header(alias="X-User-ID"),_=Depends(auth("farmer"))):
- with db() as c: rows=c.execute("SELECT p.id,p.predicted_label,p.confidence,p.created_at,f.suggested_label,f.status FROM predictions p LEFT JOIN feedback f ON f.prediction_id=p.id WHERE p.farmer_id=? ORDER BY p.created_at DESC",(farmer_id,)).fetchall()
+def mine(farmer_id:str=Depends(auth("farmer"))):
+ with db() as c:
+  rows=c.execute("""SELECT p.id,p.predicted_label,p.confidence,p.created_at,f.suggested_label,f.status,
+   r.verified_label,r.notes AS expert_notes,r.expert_id,r.created_at AS reviewed_at,r.decision
+   FROM predictions p LEFT JOIN feedback f ON f.prediction_id=p.id
+   LEFT JOIN expert_reviews r ON r.feedback_id=f.id
+   WHERE p.farmer_id=? ORDER BY p.created_at DESC""",(farmer_id,)).fetchall()
  return [dict(x) for x in rows]
 @app.get("/api/expert/queue")
-def queue(expert_id:str=Header(alias="X-User-ID"),_=Depends(auth("expert"))):
+def queue(expert_id:str=Depends(auth("expert"))):
  with db() as c: rows=c.execute("SELECT f.id feedback_id,f.prediction_id,f.farmer_id,f.suggested_label,f.notes,p.predicted_label,p.confidence FROM feedback f JOIN predictions p ON p.id=f.prediction_id WHERE f.status='pending' ORDER BY f.created_at").fetchall()
  return [dict(x) for x in rows]
 @app.get("/api/expert/image/{pid}")
-def expert_image(pid:str,expert_id:str=Header(alias="X-User-ID"),_=Depends(auth("expert"))):
+def expert_image(pid:str,expert_id:str=Depends(auth("expert"))):
  with db() as c: p=c.execute("SELECT image_path FROM predictions WHERE id=?",(pid,)).fetchone()
  if not p or not Path(p["image_path"]).is_file(): raise HTTPException(404,"Image not found")
  return FileResponse(p["image_path"])
 @app.post("/api/expert/review/{fid}")
-def review(fid:str,payload:Review,expert_id:str=Header(alias="X-User-ID"),_=Depends(auth("expert"))):
+def review(fid:str,payload:Review,expert_id:str=Depends(auth("expert"))):
  with db() as c:
+  c.execute("BEGIN IMMEDIATE")
   f=c.execute("SELECT f.*,p.farmer_id FROM feedback f JOIN predictions p ON p.id=f.prediction_id WHERE f.id=?",(fid,)).fetchone()
   if not f: raise HTTPException(404,"Feedback not found")
   if f["farmer_id"]==expert_id: raise HTTPException(403,"Submitter cannot verify their own feedback")
@@ -134,10 +152,17 @@ def review(fid:str,payload:Review,expert_id:str=Header(alias="X-User-ID"),_=Depe
   c.execute("INSERT INTO audit_log(actor_id,action,object_id,details,created_at) VALUES(?,?,?,?,?)",(expert_id,"feedback_"+status,fid,label or payload.notes,now()))
  return {"feedback_id":fid,"status":status,"verified_label":label}
 @app.get("/api/expert/export.csv")
-def export(expert_id:str=Header(alias="X-User-ID"),_=Depends(auth("expert"))):
- with db() as c: rows=c.execute("SELECT p.id,p.image_path,p.image_sha256,r.verified_label,r.expert_id,r.created_at FROM feedback f JOIN predictions p ON p.id=f.prediction_id JOIN expert_reviews r ON r.feedback_id=f.id WHERE f.status='approved' AND r.decision='approve' ORDER BY r.created_at").fetchall()
- out=io.StringIO(); w=csv.writer(out); w.writerow(["prediction_id","image_path","image_sha256","disease_label","expert_id","verified_at"])
+def export(expert_id:str=Depends(auth("expert"))):
+ with db() as c: rows=c.execute("SELECT p.id,p.image_sha256,r.verified_label,r.expert_id,r.created_at,r.notes FROM feedback f JOIN predictions p ON p.id=f.prediction_id JOIN expert_reviews r ON r.feedback_id=f.id WHERE f.status='approved' AND r.decision='approve' ORDER BY r.created_at").fetchall()
+ out=io.StringIO(); w=csv.writer(out); w.writerow(["prediction_id","image_sha256","disease_label","expert_id","verified_at","expert_notes"])
  seen=set()
  for x in rows:
-  if x["image_sha256"] not in seen: w.writerow([x["id"],x["image_path"],x["image_sha256"],x["verified_label"],x["expert_id"],x["created_at"]]); seen.add(x["image_sha256"])
+  if x["image_sha256"] not in seen:
+   w.writerow([x["id"],x["image_sha256"],x["verified_label"],x["expert_id"],x["created_at"],x["notes"]]); seen.add(x["image_sha256"])
  return Response(out.getvalue(),media_type="text/csv",headers={"Content-Disposition":'attachment; filename="verified_feedback.csv"'})
+
+@app.get("/api/expert/reviews")
+def review_history(expert_id:str=Depends(auth("expert"))):
+ with db() as c:
+  rows=c.execute("""SELECT f.id AS feedback_id,f.prediction_id,f.farmer_id,f.suggested_label,f.status,p.predicted_label,p.confidence,r.decision,r.verified_label,r.notes AS expert_notes,r.expert_id,r.created_at AS reviewed_at FROM feedback f JOIN predictions p ON p.id=f.prediction_id JOIN expert_reviews r ON r.feedback_id=f.id ORDER BY r.created_at DESC""").fetchall()
+ return [dict(x) for x in rows]
