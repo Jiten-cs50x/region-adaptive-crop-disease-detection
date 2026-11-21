@@ -186,6 +186,14 @@ def train_from_config(
     root = Path(dataset_dir).expanduser().resolve()
     splits = Path(splits_dir).expanduser().resolve()
     output = Path(output_dir).expanduser().resolve()
+    if output.exists():
+        if not output.is_dir():
+            raise NotADirectoryError(f"Training output path is not a directory: {output}")
+        if any(output.iterdir()):
+            raise FileExistsError(
+                f"Training output directory is not empty: {output}. "
+                "Choose a new, unique output directory so existing checkpoints and reports are preserved."
+            )
     train_csv, validation_csv = splits / "train.csv", splits / "validation.csv"
     if not train_csv.is_file() or not validation_csv.is_file():
         raise FileNotFoundError(

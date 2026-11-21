@@ -60,6 +60,7 @@ The configuration uses EfficientNet-B0, 224-pixel input, batch size 8, and `num_
     crop-adaptive train --config configs/sugarcane_karnataka.yaml --dataset datasets/sugarcane/raw --splits datasets/sugarcane/splits --output runs/sugarcane_smoke_test --epochs 2 --batch-size 4 --device cuda --no-pretrained
 
 Training reads train.csv and validation.csv only, not test.csv. The best checkpoint is selected by validation loss.
+Training refuses to write into a non-empty output directory. Give every experiment a new, unique `--output` path (for example, `runs/candidates/feedback_round_001`) so the baseline checkpoint and prior reports cannot be overwritten accidentally.
 
 ## Evaluate the held-out test split
 
