@@ -195,7 +195,7 @@ def test_prediction_upload_runs_inference_and_rejects_duplicate(client, monkeypa
     )
     assert first.status_code == 200
     assert first.json()["predicted_label"] == "Brown Spot"
-    assert first.json()["model_version"] == "test-checkpo"
+    assert first.json()["model_version"] == "test-checkpoint"
 
     duplicate = client.post(
         "/api/predictions",
