@@ -29,6 +29,7 @@ def client(tmp_path,monkeypatch):
   for username in ("expert-9","expert-2"):
    r=c.post("/api/admin/experts",headers=csrf(c),json={"username":username,"display_name":username,"password":"expert-password-123"})
    assert r.status_code==200
+  c.cookies.clear()
   yield c
 
 def login(client,username,password):
@@ -48,8 +49,9 @@ def seed_prediction():
  digest=hashlib.sha256(image_path.read_bytes()).hexdigest()
  pid=str(uuid.uuid4())
  with api.db() as con:
+  farmer=con.execute("SELECT id FROM users WHERE username='farmer-1'").fetchone()
   con.execute("INSERT INTO predictions VALUES(?,?,?,?,?,?,?,?)",
-   (pid,"farmer-1",str(image_path),digest,"Healthy",0.91,"test-model",datetime.now(timezone.utc).isoformat()))
+   (pid,farmer["id"],str(image_path),digest,"Healthy",0.91,"test-model",datetime.now(timezone.utc).isoformat()))
  return pid
 
 def test_registration_login_and_role_protection(client):
@@ -110,7 +112,7 @@ def test_csrf_and_logout_invalidate_session(client):
  assert client.get("/api/my-submissions").status_code==401
 
 def test_prediction_upload_runs_inference_and_rejects_duplicate(client,monkeypatch):
- import torch
+ torch=pytest.importorskip("torch")
  class StubModel:
   def __call__(self,batch): return torch.tensor([[0.1,0.9]])
  monkeypatch.setattr(api,"predictor",lambda:(StubModel(),["Healthy","Brown Spot"],lambda image:torch.zeros((3,224,224)),"test-checkpoint",torch))
