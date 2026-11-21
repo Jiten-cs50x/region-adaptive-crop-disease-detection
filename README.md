@@ -168,14 +168,14 @@ pip install "uvicorn[standard]"
 Configure the service and start it (replace the demo tokens with long random values outside local testing):
 
 ```powershell
-$env:FARMER_API_TOKEN="replace-with-a-long-random-farmer-token"
-$env:EXPERT_API_TOKEN="replace-with-a-different-long-random-expert-token"
+$env:FARMER_API_TOKENS='{"farmer-001":"replace-with-a-long-random-farmer-token"}'
+$env:EXPERT_API_TOKENS='{"expert-001":"replace-with-a-different-long-random-expert-token"}'
 $env:CROP_MODEL_CHECKPOINT="runs/sugarcane_efficientnet_b0/best_model.pt"
 $env:CROP_CONFIG="configs/sugarcane_karnataka.yaml"
 python -m uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. Use the farmer token and a farmer ID for submissions; use the separate expert token and a different expert ID for verification. The dashboard supports prediction, correction submission, expert review, status checking, and approved-feedback CSV export.
+Open http://127.0.0.1:8000. Each token is bound to the user ID in its JSON map. Add one entry per account; the X-User-ID header must match the identity bound to the supplied token. The dashboard supports prediction, correction submission, expert review, status checking, review history, and approved-feedback CSV export. Tokens are individually bound to account IDs through FARMER_API_TOKENS and EXPERT_API_TOKENS JSON maps.
 
 Run the API tests in another terminal:
 
