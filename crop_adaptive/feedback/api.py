@@ -49,7 +49,7 @@ def db():
  finally: c.close()
 def ensure_core_schema():
  with db() as c:
- c.executescript("""
+  c.executescript("""
  CREATE TABLE IF NOT EXISTS predictions(id TEXT PRIMARY KEY,farmer_id TEXT NOT NULL,image_path TEXT NOT NULL,image_sha256 TEXT NOT NULL UNIQUE,predicted_label TEXT NOT NULL,confidence REAL NOT NULL,model_version TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS feedback(id TEXT PRIMARY KEY,prediction_id TEXT NOT NULL REFERENCES predictions(id),farmer_id TEXT NOT NULL,suggested_label TEXT NOT NULL,notes TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(prediction_id,farmer_id));
  CREATE TABLE IF NOT EXISTS expert_reviews(id TEXT PRIMARY KEY,feedback_id TEXT NOT NULL REFERENCES feedback(id),expert_id TEXT NOT NULL,decision TEXT NOT NULL,verified_label TEXT,notes TEXT NOT NULL,created_at TEXT NOT NULL);
