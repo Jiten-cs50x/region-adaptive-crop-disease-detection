@@ -165,3 +165,41 @@ def test_reject_decision_never_enters_verified_export(client):
 def test_identity_bound_tokens_reject_invalid_identity(client):
     assert client.get("/api/my-submissions", headers=headers(user="farmer-2")).status_code == 200
     assert client.get("/api/my-submissions", headers={"Authorization":"Bearer not-valid","X-User-ID":"farmer-1"}).status_code == 401
+
+
+def test_prediction_upload_runs_inference_and_rejects_duplicate(client, monkeypatch):
+    import torch
+
+    class StubModel:
+        def __call__(self, batch):
+            return torch.tensor([[0.1, 0.9]])
+
+    monkeypatch.setattr(
+        api,
+        "predictor",
+        lambda: (
+            StubModel(),
+            ["Healthy", "Brown Spot"],
+            lambda image: torch.zeros((3, 224, 224)),
+            "test-checkpoint",
+            torch,
+        ),
+    )
+    image_bytes = io.BytesIO()
+    Image.new("RGB", (80, 80), "green").save(image_bytes, format="PNG")
+    payload = image_bytes.getvalue()
+    first = client.post(
+        "/api/predictions",
+        headers=headers(),
+        files={"image": ("leaf.png", payload, "image/png")},
+    )
+    assert first.status_code == 200
+    assert first.json()["predicted_label"] == "Brown Spot"
+    assert first.json()["model_version"] == "test-checkpo"
+
+    duplicate = client.post(
+        "/api/predictions",
+        headers=headers(),
+        files={"image": ("leaf.png", payload, "image/png")},
+    )
+    assert duplicate.status_code == 409
