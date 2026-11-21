@@ -47,7 +47,8 @@ def db():
  try: yield c; c.commit()
  except Exception: c.rollback(); raise
  finally: c.close()
-with db() as c:
+def ensure_core_schema():
+ with db() as c:
  c.executescript("""
  CREATE TABLE IF NOT EXISTS predictions(id TEXT PRIMARY KEY,farmer_id TEXT NOT NULL,image_path TEXT NOT NULL,image_sha256 TEXT NOT NULL UNIQUE,predicted_label TEXT NOT NULL,confidence REAL NOT NULL,model_version TEXT NOT NULL,created_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS feedback(id TEXT PRIMARY KEY,prediction_id TEXT NOT NULL REFERENCES predictions(id),farmer_id TEXT NOT NULL,suggested_label TEXT NOT NULL,notes TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,UNIQUE(prediction_id,farmer_id));
@@ -56,8 +57,10 @@ with db() as c:
  CREATE INDEX IF NOT EXISTS feedback_status_idx ON feedback(status);
  CREATE UNIQUE INDEX IF NOT EXISTS expert_reviews_feedback_unique ON expert_reviews(feedback_id);
  """)
+ensure_core_schema()
 @app.on_event("startup")
 def initialize_auth():
+ ensure_core_schema()
  ensure_auth_schema()
 class RegisterFarmer(BaseModel):
  username:str=Field(min_length=3,max_length=40,pattern=r"^[a-zA-Z0-9_.-]+$")
