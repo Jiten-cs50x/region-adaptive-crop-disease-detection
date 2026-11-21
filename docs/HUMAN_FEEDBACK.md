@@ -1,71 +1,94 @@
-# Supervised human feedback (FastAPI)
+# Agrivision AI human feedback and accounts
 
-This is an opt-in review service alongside the existing classifier. It does not alter the baseline checkpoint or automatically retrain/deploy a model.
+The FastAPI service provides farmer image submissions, model predictions, correction proposals, expert verification, an audit trail and approved-feedback CSV export. It uses SQLite and local image storage by default. It does not automatically retrain or deploy a model.
+
+## Account and role model
+
+- Farmers can register themselves with a username, display name and password (minimum 10 characters). A phone number is optional.
+- Experts cannot self-register. An administrator creates expert accounts from the Administrator workspace.
+- The first administrator is bootstrapped from `AGRIVISION_ADMIN_USERNAME` and `AGRIVISION_ADMIN_PASSWORD` when the service starts and no account with that username exists.
+- The selected dashboard workspace is not authority: the backend checks the signed-in account's stored role on every protected request.
+- Passwords are stored as salted PBKDF2-HMAC-SHA256 hashes, never plaintext.
+- Successful login creates a signed, HttpOnly, SameSite=Lax session cookie with a 12-hour lifetime. Mutating requests also require a CSRF token held in page memory.
+- Set `CROP_COOKIE_SECURE=1` behind HTTPS. The local default is `0` for localhost development only.
+- Set a stable `CROP_SESSION_SECRET` of at least 32 characters. Do not use the sample values below on a public deployment.
 
 ## Install and run (Windows PowerShell)
 
+Install the feedback dependencies:
+
 ```powershell
 pip install -e ".[feedback]"
-$env:FARMER_API_TOKEN="replace-with-a-long-random-farmer-token"
-$env:EXPERT_API_TOKEN="replace-with-a-different-long-random-expert-token"
-$env:CROP_MODEL_CHECKPOINT="runs/sugarcane_efficientnet_b0/best_model.pt"
-$env:CROP_CONFIG="configs/sugarcane_karnataka.yaml"
-uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. Use distinct farmer and expert tokens and distinct user IDs. Never expose this development service directly to the public internet: deploy behind HTTPS, proper account authentication/authorization, rate limiting, secure secret storage, and managed image storage.
-
-## Workflow
-
-1. Farmer uploads a JPEG/PNG/WebP image (10 MB maximum). The configured checkpoint performs inference; client-supplied predictions are never accepted.
-2. The farmer may submit one proposed correction for that prediction.
-3. A separately authenticated expert reviews the image and proposal, then approves/rejects it. The submitter cannot review their own correction.
-4. Only approved labels appear in `GET /api/expert/export.csv`. The export includes image paths, SHA-256 hashes, reviewer and verification timestamp. It is a review-data export, not a ready-to-train merged dataset.
-
-## API
-
-- `GET /health`
-- `POST /api/predictions` multipart field `image` (farmer)
-- `POST /api/predictions/{id}/feedback` JSON `{"suggested_label":"Healthy","notes":"..." }` (farmer)
-- `GET /api/my-submissions` (farmer)
-- `GET /api/expert/queue` (expert)
-- `GET /api/expert/image/{prediction_id}` (expert)
-- `POST /api/expert/review/{feedback_id}` JSON `{"decision":"approve","verified_label":"Healthy","notes":"..." }` (expert)
-- `GET /api/expert/export.csv` (expert)
-
-All protected endpoints require `Authorization: Bearer <role-token>` and `X-User-ID`. Labels are checked against the configured taxonomy. Original predictions are retained; review decisions and actions are append-recorded in SQLite audit/review tables. Duplicate image content is rejected by SHA-256.
-
-## Retraining safety
-
-Do not feed the CSV directly into the existing training command: its image paths are absolute and it is not a merged, leakage-checked training split. First stage approved images into a new dataset version, verify label quality and duplicates against train/validation/test, keep the original held-out test split untouched, create a new group-aware split, train a separate candidate checkpoint, evaluate it, and promote it only after explicit human approval. No deployment or checkpoint replacement is performed by this service.
-
-The included token authentication is a minimal single-host prototype, not a substitute for production identity management. SQLite and local image storage are suitable for a demo/single process, not multi-worker production.
-
-## Local verification
-
-From the repository root in PowerShell, update the branch and install the test/runtime dependencies. If PyTorch and torchvision are already installed and working for the training environment, keep those versions rather than replacing them:
+Configure the session secret and initial administrator. Generate the session secret with the first command; choose a strong, unique administrator password:
 
 ```powershell
-git fetch origin
-git switch feature/supervised-human-feedback
-git pull
-pip install -e ".[dev]"
-python -c "import torch, torchvision; print('torch', torch.__version__, 'torchvision', torchvision.__version__)"
-pytest -q tests/test_feedback_api.py
-```
-
-Then configure the existing best checkpoint and start the API:
-
-```powershell
-$env:FARMER_API_TOKEN = "replace-with-a-long-random-farmer-token"
-$env:EXPERT_API_TOKEN = "use-a-different-long-random-expert-token"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+$env:CROP_SESSION_SECRET = "PASTE_THE_GENERATED_VALUE_HERE"
+$env:AGRIVISION_ADMIN_USERNAME = "admin"
+$env:AGRIVISION_ADMIN_PASSWORD = "CHOOSE_A_LONG_UNIQUE_PASSWORD"
+$env:CROP_COOKIE_SECURE = "0"
 $env:CROP_MODEL_CHECKPOINT = "runs/sugarcane_efficientnet_b0/best_model.pt"
 $env:CROP_CONFIG = "configs/sugarcane_karnataka.yaml"
 uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000. The prediction path now uses the same configured deterministic prediction transform, class order, and model factory as training/evaluation; it fails closed if checkpoint classes do not exactly match the configured taxonomy. The integration tests cover authentication, ownership, correction submission, expert queue/image access, approval, rejection, and approved-only export. They seed test prediction rows and therefore do not validate the actual local checkpoint inference; perform one real image upload in the browser after the API tests pass.
+Open http://127.0.0.1:8000. Sign in as the initial administrator, create approved expert accounts, and share their credentials securely. Farmers can use the Farmer workspace to register. Experts use credentials supplied by the administrator.
 
-Keep the server running while testing. Use a farmer ID such as `farmer-001` with the farmer token, then switch to a different expert ID such as `expert-001` with the expert token. Upload a fresh image (the same raw file hash is intentionally rejected if already submitted). Submit a correction, open the Expert tab, load the queue, inspect the image, and approve/reject. Refresh the farmer submissions and download the verified CSV as the expert. Only the approved item should appear in the CSV.
+If the administrator username already exists, changing the bootstrap environment variables does not reset that account's password. Account recovery/reset is not yet implemented.
 
-If tests fail, copy the complete traceback and the command that produced it. If inference returns 500, copy the server terminal traceback (remove tokens first). Do not share API tokens or checkpoint files.
+## Local data storage
+
+By default, the service stores data under `runs/feedback/`:
+
+- `feedback.sqlite3`: user accounts, prediction metadata, feedback, expert reviews and audit records.
+- `uploads/`: uploaded images stored as JPEG files.
+
+Set `CROP_FEEDBACK_HOME` to move both to another persistent directory. Back up the entire directory while the service is stopped (or use a consistent SQLite backup procedure). Do not commit this directory to Git. SQLite and local files are suitable for a local demonstration or single-host deployment, not a horizontally scaled production service.
+
+## Workflow
+
+1. A farmer registers or signs in, then uploads a JPEG/PNG/WebP image (10 MB maximum).
+2. The configured checkpoint performs inference; client-supplied predictions are never accepted.
+3. The farmer may submit one proposed correction for that prediction.
+4. An independently authenticated expert reviews the image and proposal, then approves/rejects it. The submitter cannot verify their own correction.
+5. Only approved labels appear in `GET /api/expert/export.csv`. The export contains prediction IDs, image SHA-256 hashes, verified labels, reviewer IDs, notes and timestamps, not server filesystem paths.
+
+## API
+
+- `POST /api/auth/register` — farmer self-registration only
+- `POST /api/auth/login` — username/password sign-in
+- `GET /api/auth/me` — current account
+- `POST /api/auth/logout` — invalidate the current account's sessions
+- `POST /api/admin/experts` — administrator creates an expert
+- `GET /api/admin/experts` — administrator lists expert accounts
+- `GET /health`
+- `GET /api/taxonomy`
+- `POST /api/predictions` — farmer image upload/inference
+- `POST /api/predictions/{id}/feedback` — farmer correction
+- `GET /api/my-submissions` — farmer history
+- `GET /api/expert/queue` — expert review queue
+- `GET /api/expert/image/{prediction_id}` — expert image
+- `POST /api/expert/review/{feedback_id}` — expert decision
+- `GET /api/expert/export.csv` — approved-only export
+- `GET /api/expert/reviews` — expert review history
+
+Browser requests use the session cookie automatically. The dashboard attaches the CSRF token returned in the `X-CSRF-Token` response header to state-changing requests. Do not reintroduce user-editable identity headers or shared bearer tokens.
+
+## Retraining safety
+
+Do not feed the CSV directly into the existing training command. First stage approved images into a new dataset version, verify label quality and duplicates against train/validation/test, keep the original held-out test split untouched, create a new group-aware split, train a separate candidate checkpoint, evaluate it, and promote it only after explicit human approval. No deployment or checkpoint replacement is performed by this service.
+
+## Security and deployment limitations
+
+This is an improved single-host project authentication flow, not a production security audit. Before public deployment, add HTTPS, rate limiting, account recovery, email/phone verification as appropriate, administrator password reset and expert deactivation UI, secure secret management, persistent managed image storage, database backups, monitoring and a production database such as PostgreSQL. Configure `CROP_COOKIE_SECURE=1` behind HTTPS. Do not expose the development server directly to the public internet.
+
+## Tests
+
+```powershell
+pip install -e ".[dev]"
+pytest -q tests/test_feedback_api.py
+```
+
+Tests cover farmer registration, admin-created experts, role authorization, CSRF/session invalidation, ownership, feedback submission, expert approval/rejection, review history, approved-only export and mocked prediction upload. They do not replace a real browser walkthrough with the local model checkpoint.

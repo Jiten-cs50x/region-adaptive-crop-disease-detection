@@ -150,42 +150,9 @@ Outputs include robustness_report.json, robustness_metrics.csv, and robustness_p
 
 ## Supervised human feedback (v0.16.0)
 
-A separate FastAPI service provides farmer image submissions, EfficientNet-B0 predictions, farmer-proposed corrections, expert approval/rejection, an audit trail, and CSV export of expert-approved labels. The farmer and expert dashboard workflow has been run successfully locally on Windows. The API test suite also passed locally (`4 passed`). These checks validate the feedback API and local workflow; they are not a production security audit or a claim of deployment readiness.
+The FastAPI feedback service supports farmer self-registration, administrator-created expert accounts, password-based sign-in, signed sessions, CSRF protection, prediction submissions, farmer corrections, expert verification, audit history and approved-feedback export. It uses SQLite and local image storage by default. See [the feedback service guide](docs/HUMAN_FEEDBACK.md) for setup, authentication, storage, endpoints, testing and deployment limitations.
 
 The service does not change the baseline checkpoint or automatically retrain/deploy a model. Expert-approved CSV records are review data only; they must go through duplicate/leakage checks, a separate candidate training run, and evaluation against the unchanged baseline and held-out test set before any model promotion.
-
-### Install and run on Windows PowerShell
-
-Activate the project virtual environment, then install the feedback and test dependencies:
-
-```powershell
-python -m venv .venv
-.venv\\Scripts\\Activate.ps1
-pip install -e ".[dev]"
-pip install "uvicorn[standard]"
-```
-
-Configure the service and start it (replace the demo tokens with long random values outside local testing):
-
-```powershell
-$env:FARMER_API_TOKEN="replace-with-a-long-random-farmer-token"
-$env:EXPERT_API_TOKEN="replace-with-a-different-long-random-expert-token"
-$env:CROP_MODEL_CHECKPOINT="runs/sugarcane_efficientnet_b0/best_model.pt"
-$env:CROP_CONFIG="configs/sugarcane_karnataka.yaml"
-python -m uvicorn crop_adaptive.feedback.api:app --host 127.0.0.1 --port 8000
-```
-
-Open http://127.0.0.1:8000. Use the farmer token and a farmer ID for submissions; use the separate expert token and a different expert ID for verification. The dashboard supports prediction, correction submission, expert review, status checking, and approved-feedback CSV export.
-
-Run the API tests in another terminal:
-
-```powershell
-pytest -q tests/test_feedback_api.py
-```
-
-Expected result for the current test suite: `4 passed`.
-
-See [the feedback service guide](docs/HUMAN_FEEDBACK.md) for endpoints, authentication headers, data flow, and retraining safeguards. The included bearer-token role gate and local SQLite/image storage are a single-host demonstration setup, not production identity/security infrastructure. The supplied example tokens are public demo values: never use them on an internet-accessible deployment. Use real per-user authentication, HTTPS, rate limiting, secure secret storage, and managed storage before public deployment.
 
 ### AI-assisted disease explanations and management guidance (planned)
 
