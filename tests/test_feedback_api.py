@@ -61,6 +61,7 @@ def test_registration_login_and_role_protection(client):
  assert client.get("/api/my-submissions",headers=farmer_headers).status_code==200
  expert_headers=headers(client,"expert","expert-9")
  assert client.get("/api/expert/queue",headers=expert_headers).status_code==200
+ farmer_headers=headers(client)
  assert client.get("/api/expert/queue",headers=farmer_headers).status_code==403
  assert client.post("/api/admin/experts",headers=farmer_headers,json={"username":"intruder","display_name":"Intruder","password":"long-password-123"}).status_code==403
 
