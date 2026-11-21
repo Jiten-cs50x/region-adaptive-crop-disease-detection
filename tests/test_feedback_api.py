@@ -21,8 +21,8 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "UPLOADS", tmp_path / "uploads")
     monkeypatch.setattr(api, "DB_PATH", tmp_path / "feedback.sqlite3")
     api.UPLOADS.mkdir(parents=True)
-    monkeypatch.setenv("FARMER_API_TOKEN", "farmer-test-token")
-    monkeypatch.setenv("EXPERT_API_TOKEN", "expert-test-token")
+    monkeypatch.setenv("FARMER_API_TOKENS", '{"farmer-1":"farmer-test-token","farmer-2":"farmer-two-token"}')
+    monkeypatch.setenv("EXPERT_API_TOKENS", '{"expert-9":"expert-test-token","expert-2":"expert-two-token","farmer-1":"expert-farmer-token"}')
     config = tmp_path / "taxonomy.yaml"
     config.write_text(
         "taxonomy:\n  classes:\n    - Healthy\n    - Brown Spot\n",
@@ -54,14 +54,16 @@ def seed_prediction(farmer="farmer-1"):
 
 
 def headers(role="farmer", user="farmer-1"):
-    token = "farmer-test-token" if role == "farmer" else "expert-test-token"
-    return {"Authorization": f"Bearer {token}", "X-User-ID": user}
+    tokens = {"farmer":{"farmer-1":"farmer-test-token","farmer-2":"farmer-two-token"},
+              "expert":{"expert-9":"expert-test-token","expert-2":"expert-two-token","farmer-1":"expert-farmer-token"}}
+    return {"Authorization": f"Bearer {tokens[role][user]}", "X-User-ID": user}
 
 
 def test_health_and_authentication(client):
     assert client.get("/health").status_code == 200
     assert client.get("/api/my-submissions", headers={"X-User-ID": "farmer-1"}).status_code == 401
     assert client.get("/api/my-submissions", headers=headers()).status_code == 200
+    assert client.get("/api/my-submissions", headers={"Authorization":"Bearer farmer-test-token","X-User-ID":"farmer-2"}).status_code == 403
 
 
 def test_full_farmer_expert_approval_workflow(client):
@@ -95,6 +97,11 @@ def test_full_farmer_expert_approval_workflow(client):
     mine = client.get("/api/my-submissions", headers=headers())
     assert mine.status_code == 200
     assert mine.json()[0]["status"] == "approved"
+    assert mine.json()[0]["verified_label"] == "Brown Spot"
+    assert mine.json()[0]["expert_notes"] == "Expert confirmed"
+    history = client.get("/api/expert/reviews", headers=headers("expert", "expert-9"))
+    assert history.status_code == 200
+    assert history.json()[0]["verified_label"] == "Brown Spot"
 
     exported = client.get("/api/expert/export.csv", headers=headers("expert", "expert-9"))
     assert exported.status_code == 200
@@ -102,6 +109,8 @@ def test_full_farmer_expert_approval_workflow(client):
     assert len(rows) == 1
     assert rows[0]["disease_label"] == "Brown Spot"
     assert rows[0]["expert_id"] == "expert-9"
+    assert "image_path" not in rows[0]
+    assert rows[0]["expert_notes"] == "Expert confirmed"
 
 
 def test_rejects_wrong_owner_self_review_and_invalid_label(client):
@@ -151,3 +160,8 @@ def test_reject_decision_never_enters_verified_export(client):
     assert rejected.json()["status"] == "rejected"
     exported = client.get("/api/expert/export.csv", headers=headers("expert", "expert-2"))
     assert list(csv.DictReader(io.StringIO(exported.text))) == []
+
+
+def test_identity_bound_tokens_reject_invalid_identity(client):
+    assert client.get("/api/my-submissions", headers=headers(user="farmer-2")).status_code == 200
+    assert client.get("/api/my-submissions", headers={"Authorization":"Bearer not-valid","X-User-ID":"farmer-1"}).status_code == 401
